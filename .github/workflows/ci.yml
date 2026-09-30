@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Actions are pinned by commit SHA: tags can be rewritten.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck
+        run: shellcheck docker/scan.sh scripts/*.sh
+      - name: Build scanner image (verifies pinned checksums)
+        run: docker build -t security-audit-kit:ci docker
+      - name: Scan this repository with the kit
+        run: |
+          mkdir -p reports
+          docker run --rm --cap-drop ALL --security-opt no-new-privileges \
+            -v "$PWD:/src:ro" -v "$PWD/reports:/reports" security-audit-kit:ci
+          cat reports/summary.txt
