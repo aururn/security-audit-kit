@@ -23,9 +23,18 @@ IMAGE=security-audit-kit:local
 
 docker build -q -t "$IMAGE" "$KIT_DIR/docker" >/dev/null
 
+# With all capabilities dropped, root cannot write into a directory owned by someone else.
+# On Linux, run as the calling user so the report directory is writable. Docker Desktop
+# (Windows/macOS) maps bind mounts so that root inside the container can write.
+USER_ARGS=()
+if [ "$(uname -s)" = "Linux" ]; then
+  USER_ARGS=(--user "$(id -u):$(id -g)" -e HOME=/tmp)
+fi
+
 # Git Bash on Windows rewrites /src-style arguments; keep them as container paths.
 MSYS_NO_PATHCONV=1 docker run --rm \
   --cap-drop ALL --security-opt no-new-privileges \
+  ${USER_ARGS[@]+"${USER_ARGS[@]}"} \
   -v "$TARGET:/src:ro" \
   -v "$REPORTS:/reports" \
   "$IMAGE"

@@ -19,11 +19,13 @@ jobs:
           persist-credentials: false
       - name: shellcheck
         run: shellcheck docker/scan.sh scripts/*.sh
-      - name: Build scanner image (verifies pinned checksums)
-        run: docker build -t security-audit-kit:ci docker
+      # Builds the image (verifying every pinned checksum) and scans this repository with it.
       - name: Scan this repository with the kit
+        run: scripts/run-scan.sh . reports
+      - name: Fail if a scanner errored or found something
         run: |
-          mkdir -p reports
-          docker run --rm --cap-drop ALL --security-opt no-new-privileges \
-            -v "$PWD:/src:ro" -v "$PWD/reports:/reports" security-audit-kit:ci
           cat reports/summary.txt
+          if grep -qE ' error' reports/summary.txt; then echo "::error::a scanner failed to run"; exit 1; fi
+          if ! grep -qE '^gitleaks +0 hit' reports/summary.txt; then echo "::error::gitleaks found hits"; exit 1; fi
+          if ! grep -qE '^semgrep +0 finding' reports/summary.txt; then echo "::error::semgrep found issues"; exit 1; fi
+          if ! grep -qE '^zizmor +0 finding' reports/summary.txt; then echo "::error::zizmor found issues"; exit 1; fi
