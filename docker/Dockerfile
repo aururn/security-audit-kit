@@ -42,4 +42,6 @@ RUN chmod 0755 /usr/local/bin/scan
 # and privilege escalation is disabled.
 WORKDIR /src
 
+# Root is deliberate (see above); the hardening lives in how run-scan.sh and CI start it.
+# nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint
 ENTRYPOINT ["scan"]
