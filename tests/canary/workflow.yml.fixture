@@ -1,0 +1,15 @@
+# Canary: deliberately unsafe workflow. zizmor and actionlint must flag it.
+name: canary
+
+on:
+  pull_request_target:
+
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Echo title
+        run: echo "${{ github.event.pull_request.title }}"

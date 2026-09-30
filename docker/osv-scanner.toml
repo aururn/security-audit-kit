@@ -1,0 +1,57 @@
+# Vulnerabilities in the scanner image's own Python dependencies that are accepted for now.
+# Every entry needs a reason and an expiry; when it expires, osv-scanner reports it again.
+
+# semgrep 1.178.0 (latest as of 2026-09-30) requires pyjwt~=2.13.0, so pyjwt cannot be raised
+# to the fixed 2.14.0 without running semgrep on a dependency set it does not support.
+# All ten advisories concern verifying untrusted JWTs or fetching JWKS; the scanner runs
+# offline and never verifies tokens. Revisit when semgrep raises its pyjwt range
+# (the weekly pin-freshness check reports new semgrep releases).
+[[IgnoredVulns]]
+id = "GHSA-2gx3-rcp4-g85q"
+ignoreUntil = 2026-12-31
+reason = "pyjwt pinned by semgrep 1.178.0; JWKS fetching is not used by the offline scanner"
+
+[[IgnoredVulns]]
+id = "GHSA-8wjv-2p76-3863"
+ignoreUntil = 2026-12-31
+reason = "pyjwt pinned by semgrep 1.178.0; the scanner does not decode untrusted tokens"
+
+[[IgnoredVulns]]
+id = "GHSA-9j54-fg26-wv3r"
+ignoreUntil = 2026-12-31
+reason = "pyjwt pinned by semgrep 1.178.0; the scanner does not verify tokens"
+
+[[IgnoredVulns]]
+id = "GHSA-9v7f-9g4p-ffgj"
+ignoreUntil = 2026-12-31
+reason = "pyjwt pinned by semgrep 1.178.0; JWKS fetching is not used by the offline scanner"
+
+[[IgnoredVulns]]
+id = "GHSA-ffc3-869f-jxw9"
+ignoreUntil = 2026-12-31
+reason = "pyjwt pinned by semgrep 1.178.0; the scanner does not verify tokens"
+
+[[IgnoredVulns]]
+id = "GHSA-hxm8-2xgr-2p9m"
+ignoreUntil = 2026-12-31
+reason = "pyjwt pinned by semgrep 1.178.0; the scanner does not verify tokens"
+
+[[IgnoredVulns]]
+id = "GHSA-p4g4-x82p-q773"
+ignoreUntil = 2026-12-31
+reason = "pyjwt pinned by semgrep 1.178.0; the scanner does not verify tokens"
+
+[[IgnoredVulns]]
+id = "GHSA-r6x4-923q-g947"
+ignoreUntil = 2026-12-31
+reason = "pyjwt pinned by semgrep 1.178.0; the scanner does not verify tokens"
+
+[[IgnoredVulns]]
+id = "GHSA-w2cx-738m-mc7w"
+ignoreUntil = 2026-12-31
+reason = "pyjwt pinned by semgrep 1.178.0; the scanner does not verify tokens"
+
+[[IgnoredVulns]]
+id = "GHSA-w6j9-cwv2-h6wq"
+ignoreUntil = 2026-12-31
+reason = "pyjwt pinned by semgrep 1.178.0; the scanner does not parse untrusted JWK sets"

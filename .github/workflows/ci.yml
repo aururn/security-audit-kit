@@ -10,22 +10,36 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    name: check (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     steps:
       # Actions are pinned by commit SHA: tags can be rewritten.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
       - name: shellcheck
-        run: shellcheck docker/scan.sh scripts/*.sh
-      # Builds the image (verifying every pinned checksum) and scans this repository with it.
+        run: shellcheck docker/scan.sh scripts/*.sh tests/*.sh
+
+      # Builds the image (verifying every pinned checksum and that no Semgrep ruleset is empty)
+      # and scans this repository with it. The kit itself must be clean.
       - name: Scan this repository with the kit
         run: scripts/run-scan.sh . reports
-      - name: Fail if a scanner errored or found something
+      - name: Kit is clean and every scanner ran
         run: |
           cat reports/summary.txt
-          if grep -qE ' error' reports/summary.txt; then echo "::error::a scanner failed to run"; exit 1; fi
-          if ! grep -qE '^gitleaks +0 hit' reports/summary.txt; then echo "::error::gitleaks found hits"; exit 1; fi
-          if ! grep -qE '^semgrep +0 finding' reports/summary.txt; then echo "::error::semgrep found issues"; exit 1; fi
-          if ! grep -qE '^zizmor +0 finding' reports/summary.txt; then echo "::error::zizmor found issues"; exit 1; fi
+          jq -e 'all(.[]; .status != "error")' reports/summary.json
+          jq -e '.gitleaks.count == 0 and .semgrep.count == 0 and .zizmor.count == 0 and .actionlint.count == 0 and .["osv-scanner"].count == 0' reports/summary.json
+
+      # The canary proves each scanner is wired up: every tool must flag the planted issue.
+      - name: Canary detection test
+        run: tests/run-canary.sh

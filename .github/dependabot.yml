@@ -1,0 +1,19 @@
+# Actions are pinned by commit SHA and the base image by digest; Dependabot keeps both current.
+# Scanner binaries and Python tools are pinned in docker/Dockerfile and docker/requirements.txt
+# and are checked weekly by .github/workflows/pin-freshness.yml (scripts/update-tools.sh).
+# cooldown: wait a week after a release before proposing it, so a hijacked release is usually
+# caught and pulled before it reaches this repository.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7

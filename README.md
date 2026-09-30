@@ -2,7 +2,11 @@
 
 AI コーディングエージェント（Claude Code / Codex）と一緒に、Web アプリの**脆弱性**と**課金の暴走**を調べて直すためのキットです。
 
-主な対象は、LLM や SaaS の API を中継する **Next.js / Node のアプリ**です。
+[![CI](https://github.com/aururn/security-audit-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/aururn/security-audit-kit/actions/workflows/ci.yml)
+
+| 対象 | 対象外（ほかのツールと組み合わせる） |
+| --- | --- |
+| LLM や SaaS の API を中継する **Next.js / Node のアプリ**のソースと lockfile、GitHub Actions、Vercel などへのデプロイ | コンテナイメージ・IaC の検査、Python / Go などほかの言語のアプリ、ネイティブアプリ、本番への侵入テスト |
 
 | 入っているもの | 役割 |
 | --- | --- |
@@ -10,7 +14,9 @@ AI コーディングエージェント（Claude Code / Codex）と一緒に、W
 | [`skills/`](skills/) | 監査・公開前の秘密情報検査・修正の進め方・課金の確認の手順 |
 | [`checklists/`](checklists/) | カテゴリ別の確認項目（★ = 見落とされがち） |
 | [`docker/`](docker/) + [`scripts/`](scripts/) | 版とチェックサムを固定したスキャナのコンテナ |
+| [`tests/`](tests/) | キットの検出力を確かめるカナリアのテスト |
 | [`templates/`](templates/) | Issue / PR の本文テンプレート |
+| [`docs/decisions/`](docs/decisions/) | 見直す可能性のある判断の記録 |
 
 ---
 
@@ -92,11 +98,14 @@ scripts/run-scan.sh <対象ディレクトリ> [レポートの出力先]
 | --- | --- | --- |
 | gitleaks | 8.30.1 | git の全履歴・全ブランチの秘密情報（値は伏せて出力） |
 | osv-scanner | 2.6.0 | lockfile の既知の脆弱性と、悪意あるパッケージ（`MAL-`） |
-| semgrep | 1.178.0 | SAST（default / owasp-top-ten / typescript / react / nextjs / nodejsscan） |
+| semgrep | 1.178.0 | SAST。ルールセット default / owasp-top-ten / typescript / react / nodejsscan をイメージのビルド時に取り込む |
 | zizmor | 1.30.1 | GitHub Actions の危険な設定 |
-| actionlint | 1.7.12 | GitHub Actions の構文・型の誤り |
+| actionlint | 1.7.12 | GitHub Actions の構文・型の誤り、信頼できない入力のスクリプトへの埋め込み |
 
-出力は `summary.txt`（件数の要約）と、ツールごとの JSON / テキストです。
+イメージは linux/amd64 と linux/arm64（Apple Silicon）の両方で動きます。
+
+出力は `summary.json`（ツールごとの状態と件数）、`summary.txt`（同じ内容を人が読む形で）、ツールごとの JSON です。
+いずれかのツールが `error` になった場合、`run-scan.sh` は終了コード 2 で終わります。
 
 > [!IMPORTANT]
 > 結果はすべて「候補」です。圧縮済みのベンダーコードや `.next/` などのビルド成果物の誤検出は、根拠を添えて除外してから報告してください。
@@ -134,12 +143,11 @@ OWASP ZAP の受動スキャンです。
 <details>
 <summary><b>安全のための設計</b></summary>
 
-- すべてのツールを版で固定し、リリースに添付された公式のチェックサムと照合してからインストールする
-- ベースイメージはダイジェストで固定する
-- このリポジトリ自身の CI も、Actions を commit SHA で固定する。キット自身をキットでスキャンし、検出があれば失敗させる
-- スキャン対象は読み取り専用でマウントし、すべての capability を外し、権限の昇格を禁止する
-- Windows / macOS の Docker Desktop では root、Linux では呼び出し元の uid でコンテナを動かす（どちらでもレポートを書き込めるようにするため）
-- Semgrep は `--metrics=off` で動かす。ルールはレジストリから取得するが、コードや利用状況は送らない
+- バイナリは版と公式チェックサム（amd64・arm64）で、Python のツールは推移的な依存までハッシュ付きで、ベースイメージはダイジェストで固定する（[0003](docs/decisions/0003-pinning-and-updates.md)）
+- Semgrep のルールはビルド時に取り込み、空のルールセットがあればビルドを失敗させる。スキャン時にネットワークを使わず、同じイメージなら同じ結果になる（[0004](docs/decisions/0004-semgrep-rules-baked.md)）
+- スキャン対象は読み取り専用でマウントし、すべての capability を外し、権限の昇格を禁止する（[0001](docs/decisions/0001-container-user.md)）
+- CI は amd64 と arm64 の両方で、キット自身が0件であることと、カナリアを全ツールが検出することを確かめる（[0005](docs/decisions/0005-canary-test.md)）
+- このリポジトリの Actions は commit SHA で固定する
 
 </details>
 
@@ -154,30 +162,36 @@ OWASP ZAP の受動スキャンです。
 | `codex review --base <branch>` | 実装したエージェントとは別の独立レビュー。PR ごとに使う |
 | Dependabot | 単発の検査ではなく、今後出る脆弱性を継続して通知する |
 
-入れなかったもの：
-
-- **Trivy**：この範囲（Node アプリのソースと lockfile）では osv-scanner・zizmor と役割が重なる。コンテナイメージや IaC を検査する必要が出たら、版とチェックサムを固定して追加する（2026年3月にリリースと GitHub Action のタグが改ざんされた経緯があるため、特に注意）
-- **TruffleHog の検証モード**：見つけた鍵が有効かを確かめるために、その鍵を発行元の API に送る。秘密情報をどこかへ送る処理は、利用者の判断なしに行わない
-- **コードをアップロードする SaaS 型のスキャナ**：非公開のコードを外部に送るため
-
-</details>
-
-<details>
-<summary><b>ツールの版を上げるとき</b></summary>
-
-1. 新しいリリースに添付されたチェックサムファイル（`*_checksums.txt` / `*SHA256SUMS`）から値を取る
-2. [`docker/Dockerfile`](docker/Dockerfile) の `ARG`（版と SHA-256）を更新する
-3. `scripts/run-scan.sh . ./reports` でキット自身をスキャンし、CI が通ることを確かめる
+入れなかったもの（Trivy、TruffleHog の検証モード、SaaS 型スキャナ）と、その理由は [0002](docs/decisions/0002-tool-selection.md) にあります。
 
 </details>
 
 ---
 
+## ツールの版を上げる
+
+```sh
+scripts/update-tools.sh --check   # 古い版があるかだけを確かめる（あれば終了コード 1）
+scripts/update-tools.sh           # 版とチェックサムを更新する（差分を確認してからコミット）
+tests/run-canary.sh               # 更新後、全ツールが検出できることを確かめる
+```
+
+- チェックサムは、各リリースに添付された公式のファイルから取ります
+- 週1回の `Pin freshness` ワークフローが `--check` を実行し、古い版があれば失敗して通知します
+- ベースイメージのダイジェストと Actions の SHA は Dependabot が更新します
+
+---
+
 ## 既知の制限
 
-- スキャナのバイナリは x86_64（amd64）版だけ。Apple Silicon ではエミュレーションになる
-- ツールの版を自動で更新する仕組みはまだない
-- キット自体の検出力を確かめるテスト（脆弱性を仕込んだリポジトリにかける）はまだない
+- Semgrep のルールはイメージのビルド時点のものです。新しいルールを使うには、イメージを作り直します
+- Windows / macOS の Docker Desktop では、コンテナは root で動きます（対象は読み取り専用、capability なし）
+- スキャナのイメージに入る `pyjwt` 2.13.0 に既知の脆弱性があります。Semgrep 1.178.0 が 2.13 系を要求しているため上げられず、理由と期限（2026-12-31）を付けて [`docker/osv-scanner.toml`](docker/osv-scanner.toml) で受け入れています（スキャナはネットワークを使わず、JWT を検証しないため影響しません）
+- LICENSE はまだありません
+
+## 脆弱性の報告
+
+このキット自体の脆弱性は、[SECURITY.md](SECURITY.md) の手順で非公開で報告してください。
 
 ---
 
