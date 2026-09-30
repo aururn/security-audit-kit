@@ -187,7 +187,12 @@ tests/run-canary.sh               # 更新後、全ツールが検出できる�
 - Semgrep のルールはイメージのビルド時点のものです。新しいルールを使うには、イメージを作り直します
 - Windows / macOS の Docker Desktop では、コンテナは root で動きます（対象は読み取り専用、capability なし）
 - スキャナのイメージに入る `pyjwt` 2.13.0 に既知の脆弱性があります。Semgrep 1.178.0 が 2.13 系を要求しているため上げられず、理由と期限（2026-12-31）を付けて [`docker/osv-scanner.toml`](docker/osv-scanner.toml) で受け入れています（スキャナはネットワークを使わず、JWT を検証しないため影響しません）
-- LICENSE はまだありません
+
+## ライセンス
+
+[Apache License 2.0](LICENSE) です。
+
+- スキャナのイメージに入るツールは、このリポジトリには含まれず、それぞれのライセンスに従います。ビルドしたイメージを配布する場合の注意は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) にあります
 
 ## 脆弱性の報告
 

@@ -1,0 +1,7 @@
+security-audit-kit
+Copyright 2026 aururn
+
+This product is licensed under the Apache License, Version 2.0.
+
+Third-party tools installed into the scanner image at build time are not part of this
+repository and are distributed under their own licenses; see THIRD_PARTY_NOTICES.md.
