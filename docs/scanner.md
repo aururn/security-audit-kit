@@ -45,7 +45,9 @@ scripts/dast-baseline.sh http://localhost:3000 ./reports
 OWASP ZAP の受動スキャンです。
 
 > [!WARNING]
-> ローカルか、自分が管理する検証環境にだけ向けてください。ローカル以外のホストは、`DAST_I_OWN_THIS_TARGET=1` を付けない限り実行を拒否します。
+> ローカルか、自分が管理する検証環境にだけ向けてください。ローカル以外のホストは、`DAST_I_OWN_THIS_TARGET=1` を付けない限り実行を拒否します。`user@host` の形の URL と、http(s) 以外は常に拒否します。
+
+結果は `zap-baseline.json` と `zap-baseline.html` に出ます。終了時の表示は、WARN 以上の alert が無ければ「no WARN or FAIL alerts」、あれば「WARN-level alerts reported」か「FAIL-level alerts reported」です。
 
 ## コンテナの外で併用するもの
 
