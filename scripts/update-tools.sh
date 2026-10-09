@@ -3,10 +3,11 @@
 # docker/requirements.txt.
 #   scripts/update-tools.sh          rewrite the pins (review the diff, then rebuild and run the canary)
 #   scripts/update-tools.sh --check  only report; exit 1 if an eligible newer version exists
-# Only versions published at least COOLDOWN_DAYS (default 7) ago are eligible: a hijacked release
-# is usually caught and pulled within days, so waiting avoids pulling it (matches the Dependabot
-# cooldown for the base image and Actions). A newer version still inside the cooldown is reported
-# but not adopted, and does not make --check fail.
+# Only versions published at least COOLDOWN_DAYS (default 7) ago are eligible: a hijacked or
+# broken release is usually caught and pulled within days, so waiting avoids pulling it (matches
+# the Dependabot cooldown for the base image and Actions). A newer version still inside the
+# cooldown is reported but not adopted, and does not make --check fail. A pin is only ever moved
+# forward: an eligible version that is not newer than the current pin is left alone.
 # Checksums are taken from the checksum files published with each release, never computed from
 # the downloaded binary alone. Requires: curl, python3 (or python); uv for the Python lock.
 # Set GITHUB_TOKEN to avoid the unauthenticated GitHub API rate limit.
@@ -37,69 +38,74 @@ set_arg() { sed -i.bak -E "s|^ARG $1=.*$|ARG $1=$2|" "$DOCKERFILE" && rm -f "$DO
 OUTDATED=0
 report() { printf '%-12s %-10s -> %-10s %s\n' "$1" "$2" "$3" "$4"; }
 
-# Python selects the version; the JSON is piped in on stdin, COOLDOWN_DAYS is argv[1].
+# Both selectors read the registry JSON on stdin and take argv[1]=COOLDOWN_DAYS, argv[2]=current
+# pin. They print "<eligible>\t<newest>\t<outdated>":
+#   eligible  highest stable version published >= COOLDOWN_DAYS ago ("-" if none)
+#   newest    highest stable version regardless of age ("-" if none)
+#   outdated  1 iff eligible exists and is strictly newer than the current pin, else 0
+# Stable means a version like 1.2.3 (no pre-release); versions are ranked numerically, not by
+# upload time, so a late backport of an older branch never outranks a higher version.
 # (The program is passed with -c so stdin stays free for the piped data.)
 GH_SELECT=$(cat <<'PY'
 import json, sys, re, datetime
-days = int(sys.argv[1])
-rels = json.load(sys.stdin)
+days, cur = int(sys.argv[1]), sys.argv[2]
 now = datetime.datetime.now(datetime.timezone.utc)
-newest = elig = "-"
-for r in rels:
+def key(v): return tuple(int(x) for x in v.lstrip("v").split("."))
+def gt(a, b):
+    ka, kb = key(a), key(b); n = max(len(ka), len(kb))
+    return ka + (0,) * (n - len(ka)) > kb + (0,) * (n - len(kb))
+cands = []
+for r in json.load(sys.stdin):
     if r.get("draft") or r.get("prerelease"):
         continue
     tag = r.get("tag_name") or ""
-    if not re.fullmatch(r"v?\d+(\.\d+)*", tag):
-        continue
     pa = r.get("published_at")
-    if not pa:
+    if not re.fullmatch(r"v?\d+(\.\d+)*", tag) or not pa:
         continue
     dt = datetime.datetime.fromisoformat(pa.replace("Z", "+00:00"))
-    if newest == "-":
-        newest = tag
-    if (now - dt).days >= days:
-        elig = tag
-        break
-print(f"{elig}\t{newest}")
+    cands.append((tag, dt))
+newest = max((c[0] for c in cands), key=key, default="-")
+elig_items = [c[0] for c in cands if (now - c[1]).days >= days]
+elig = max(elig_items, key=key, default="-")
+outdated = 1 if elig != "-" and gt(elig, cur) else 0
+print(f"{elig}\t{newest}\t{outdated}")
 PY
 )
 
 PYPI_SELECT=$(cat <<'PY'
 import json, sys, re, datetime
-days = int(sys.argv[1])
-d = json.load(sys.stdin)
+days, cur = int(sys.argv[1]), sys.argv[2]
 now = datetime.datetime.now(datetime.timezone.utc)
+def key(v): return tuple(int(x) for x in v.split("."))
+def gt(a, b):
+    ka, kb = key(a), key(b); n = max(len(ka), len(kb))
+    return ka + (0,) * (n - len(ka)) > kb + (0,) * (n - len(kb))
+d = json.load(sys.stdin)
 cands = []
 for ver, files in d.get("releases", {}).items():
     if not re.fullmatch(r"\d+(\.\d+)*", ver):
         continue
-    times = [f.get("upload_time_iso_8601") or f.get("upload_time") for f in files]
+    live = [f for f in files if not f.get("yanked")]   # a yanked (withdrawn) release is not a candidate
+    times = [f.get("upload_time_iso_8601") or f.get("upload_time") for f in live]
     times = [t for t in times if t]
     if not times:
         continue
     t = min(datetime.datetime.fromisoformat(x.replace("Z", "+00:00")) for x in times)
     if t.tzinfo is None:
         t = t.replace(tzinfo=datetime.timezone.utc)
-    cands.append((t, ver))
-cands.sort()
-newest = cands[-1][1] if cands else "-"
-elig = "-"
-for t, ver in reversed(cands):
-    if (now - t).days >= days:
-        elig = ver
-        break
-print(f"{elig}\t{newest}")
+    cands.append((ver, t))
+newest = max((c[0] for c in cands), key=key, default="-")
+elig_items = [c[0] for c in cands if (now - c[1]).days >= days]
+elig = max(elig_items, key=key, default="-")
+outdated = 1 if elig != "-" and gt(elig, cur) else 0
+print(f"{elig}\t{newest}\t{outdated}")
 PY
 )
 
-# Prints "<eligible_tag>\t<newest_tag>" for a GitHub repo, stable releases only (tag like v1.2.3,
-# not draft or prerelease). eligible = newest published >= COOLDOWN_DAYS ago; newest = regardless.
-gh_eligible() { gh_api "repos/$1/releases?per_page=30" | "$PY" -c "$GH_SELECT" "$COOLDOWN_DAYS"; }
+gh_eligible() { gh_api "repos/$1/releases?per_page=30" | "$PY" -c "$GH_SELECT" "$COOLDOWN_DAYS" "$2"; }
+pypi_eligible() { curl -fsSL "https://pypi.org/pypi/$1/json" | "$PY" -c "$PYPI_SELECT" "$COOLDOWN_DAYS" "$2"; }
 
-# Prints "<eligible_version>\t<newest_version>" for a PyPI package, stable versions only.
-pypi_eligible() { curl -fsSL "https://pypi.org/pypi/$1/json" | "$PY" -c "$PYPI_SELECT" "$COOLDOWN_DAYS"; }
-
-cooldown_note() {  # <eligible> <newest> : " (X in cooldown)" when a newer version is still too fresh
+cooldown_note() {  # <eligible> <newest> : " (X in cooldown)" when a higher version is still too fresh
   if [ "$2" != "$1" ] && [ "$2" != "-" ]; then printf ' (%s in cooldown)' "${2#v}"; fi
 }
 
@@ -107,17 +113,15 @@ cooldown_note() {  # <eligible> <newest> : " (X in cooldown)" when a newer versi
 # Asset names may contain {v} for the version without the leading "v".
 update_binary() {
   local name=$1 repo=$2 varg=$3 sprefix=$4 sums_tpl=$5 amd_tpl=$6 arm_tpl=$7
-  local cur out elig newest tag latest note
+  local cur out elig newest od tag latest note
   cur=$(current_arg "$varg")
-  out=$(gh_eligible "$repo")
-  elig=${out%%$'\t'*}; newest=${out##*$'\t'}
-  if [ "$elig" = "-" ] || [ -z "$elig" ]; then
-    report "$name" "$cur" "-" "no version past cooldown"; return
-  fi
-  tag=$elig; latest=${elig#v}
+  out=$(gh_eligible "$repo" "$cur")
+  IFS=$'\t' read -r elig newest od <<<"$out"
+  if [ "$elig" = "-" ]; then report "$name" "$cur" "-" "no version past cooldown"; return; fi
   note=$(cooldown_note "$elig" "$newest")
-  if [ "$cur" = "$latest" ]; then report "$name" "$cur" "$latest" "up to date$note"; return; fi
+  if [ "$od" != "1" ]; then report "$name" "$cur" "$cur" "up to date$note"; return; fi
   OUTDATED=1
+  tag=$elig; latest=${elig#v}
   report "$name" "$cur" "$latest" "outdated$note"
   [ "$CHECK" -eq 1 ] && return
   local sums amd arm
@@ -144,13 +148,11 @@ update_binary actionlint rhysd/actionlint ACTIONLINT_VERSION ACTIONLINT_SHA256 \
 PY_CHANGED=0
 for pkg in semgrep zizmor; do
   cur=$(sed -nE "s/^$pkg==(.*)$/\1/p" "$REQ_IN")
-  out=$(pypi_eligible "$pkg")
-  elig=${out%%$'\t'*}; newest=${out##*$'\t'}
-  if [ "$elig" = "-" ] || [ -z "$elig" ]; then
-    report "$pkg" "$cur" "-" "no version past cooldown"; continue
-  fi
+  out=$(pypi_eligible "$pkg" "$cur")
+  IFS=$'\t' read -r elig newest od <<<"$out"
+  if [ "$elig" = "-" ]; then report "$pkg" "$cur" "-" "no version past cooldown"; continue; fi
   note=$(cooldown_note "$elig" "$newest")
-  if [ "$cur" = "$elig" ]; then report "$pkg" "$cur" "$elig" "up to date$note"; continue; fi
+  if [ "$od" != "1" ]; then report "$pkg" "$cur" "$cur" "up to date$note"; continue; fi
   OUTDATED=1
   report "$pkg" "$cur" "$elig" "outdated$note"
   [ "$CHECK" -eq 1 ] && continue
