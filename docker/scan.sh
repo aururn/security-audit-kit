@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs inside the scanner image. Target: /src (read-only). Reports: /reports.
 # Each tool's result is recorded instead of aborting, so one failure does not hide the rest.
-# summary.json: { "<tool>": { "status": "ok" | "skipped" | "error", "count": <int|null>, "report": "<file>" } }
+# summary.json: { "<tool>": { "status": "ok"|"skipped"|"error", "count": <int|null>, "report": "<file>", "note": "<text>" } }
 set -uo pipefail
 
 SRC=${SCAN_SRC:-/src}
@@ -17,8 +17,8 @@ echo '{}' > "$SUMMARY_JSON"
 record() {
   local tmp
   tmp=$(mktemp)
-  jq --arg t "$1" --arg s "$2" --argjson c "$3" --arg r "$4" \
-    '.[$t] = {status: $s, count: $c, report: $r}' "$SUMMARY_JSON" > "$tmp" && mv "$tmp" "$SUMMARY_JSON"
+  jq --arg t "$1" --arg s "$2" --argjson c "$3" --arg r "$4" --arg n "$5" \
+    '.[$t] = {status: $s, count: $c, report: $r, note: $n}' "$SUMMARY_JSON" > "$tmp" && mv "$tmp" "$SUMMARY_JSON"
   printf '%-12s %-8s %-6s %s  [t=%ss]\n' "$1" "$2" "$3" "$5" "$SECONDS" | tee -a "$SUMMARY_TXT"
 }
 
@@ -30,9 +30,15 @@ printf '%-12s %-8s %-6s %s\n' tool status count note | tee -a "$SUMMARY_TXT"
 
 # 1. Secrets in the full git history (values redacted).
 if git -C "$SRC" rev-parse --git-dir >/dev/null 2>&1; then
+  # A shallow clone has only the tip commits, so --all cannot reach older history: a clean
+  # result then means "nothing in what was fetched", not "nothing ever committed". Say so.
+  gl_note="secrets in git history"
+  if [ "$(git -C "$SRC" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+    gl_note="secrets in git history (SHALLOW clone: older commits not scanned)"
+  fi
   if gitleaks git "$SRC" --log-opts="--all" --redact --no-banner --exit-code 0 \
       --report-format json --report-path "$OUT/gitleaks.json" >"$OUT/gitleaks.log" 2>&1; then
-    record gitleaks ok "$(count_json "$OUT/gitleaks.json" length)" gitleaks.json "secrets in git history"
+    record gitleaks ok "$(count_json "$OUT/gitleaks.json" length)" gitleaks.json "$gl_note"
   else
     record gitleaks error null gitleaks.log "see gitleaks.log"
   fi

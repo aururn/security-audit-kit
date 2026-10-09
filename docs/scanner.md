@@ -22,7 +22,7 @@ Docker のイメージをビルドし、対象を読み取り専用でマウン�
 
 | ファイル | 内容 |
 | --- | --- |
-| `summary.json` | ツールごとの `status`（`ok` / `skipped` / `error`）と `count` |
+| `summary.json` | ツールごとの `status`（`ok` / `skipped` / `error`）、`count`、`note`（補足。浅い clone などの注意もここに出る） |
 | `summary.txt` | 同じ内容を人が読む形で |
 | `gitleaks.json`、`osv.json`、`semgrep.json`、`zizmor.json`、`actionlint.json` | 各ツールの結果 |
 
