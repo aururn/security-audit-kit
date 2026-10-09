@@ -2,6 +2,7 @@
 # Build the scanner image (if needed) and scan a local repository.
 # Usage: scripts/run-scan.sh <target-dir> [report-dir]
 # The target is mounted read-only; reports are written to <report-dir> (default ./reports).
+# Env: SCAN_WORKTREE=1 also scans the working tree (uncommitted/gitignored files), not just history.
 set -euo pipefail
 
 if [ $# -lt 1 ]; then
@@ -33,9 +34,13 @@ if [ "$(uname -s)" = "Linux" ]; then
 fi
 
 # Git Bash on Windows rewrites /src-style arguments; keep them as container paths.
+WORKTREE_ARGS=()
+[ "${SCAN_WORKTREE:-0}" = "1" ] && WORKTREE_ARGS=(-e SCAN_WORKTREE=1)
+
 MSYS_NO_PATHCONV=1 docker run --rm \
   --cap-drop ALL --security-opt no-new-privileges \
   ${USER_ARGS[@]+"${USER_ARGS[@]}"} \
+  ${WORKTREE_ARGS[@]+"${WORKTREE_ARGS[@]}"} \
   -v "$TARGET:/src:ro" \
   -v "$REPORTS:/reports" \
   "$IMAGE"
