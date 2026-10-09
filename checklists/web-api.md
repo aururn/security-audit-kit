@@ -10,9 +10,10 @@
   - 例: Cookie の値をそのまま上流 API の `user` に使うと、他人の値を推測・入手した人がその人の履歴を読める。UUID なら推測は困難だが、取得経路（XSS、ログ）を塞ぐ
 - [ ] オブジェクトの ID（会話 ID、メッセージ ID など）で他人のデータを操作できない
   - 確認: 上流（DB・SaaS）側が所有者で絞り込んでいるか。絞り込みを上流任せにしている場合は、その前提を記録する
-- [ ] ★ Webhook の受け口が、送信元の署名を検証している（Stripe、GitHub など）
-  - 署名ヘッダ（例: `Stripe-Signature`、`X-Hub-Signature-256`）を、生の本文と共有鍵で検証する。パース後の本文で検証しない。タイムスタンプを見て再送（replay）を弾く
-  - 確認: 署名を外した、または古いタイムスタンプのリクエストが拒否される
+- [ ] ★ Webhook の受け口が、送信元の署名を **生の本文** で検証している（パース後の本文では検証しない）
+  - 署名ヘッダ（`Stripe-Signature`、`X-Hub-Signature-256` など）を共有鍵で検証する
+  - 再送（replay）対策は提供元で異なる。Stripe は署名に含まれるタイムスタンプが古いものを弾く。GitHub は署名にタイムスタンプが無いので、`X-GitHub-Delivery`（配信 ID）で冪等化・重複排除する
+  - 確認: 署名を外したリクエストが拒否される。Stripe は古いタイムスタンプ、GitHub は同じ配信 ID の二重処理が弾かれる
 - [ ] ★ cron・内部用・管理用のエンドポイントが、認証なしで叩けない
   - Vercel Cron は `Authorization: Bearer $CRON_SECRET` を送る。これを検証する。`/api/internal/*` や seed・migration の口が公開されていないか
   - 確認: secret なしで叩いて拒否されるか。LLM など有料の上流を呼ぶ cron は特に重要（`checklists/cost-and-abuse.md`）
