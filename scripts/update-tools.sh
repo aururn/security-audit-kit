@@ -47,7 +47,7 @@ report() { printf '%-12s %-10s -> %-10s %s\n' "$1" "$2" "$3" "$4"; }
 # upload time, so a late backport of an older branch never outranks a higher version.
 # (The program is passed with -c so stdin stays free for the piped data.)
 GH_SELECT=$(cat <<'PY'
-import json, sys, re, datetime
+import sys, datetime
 days, cur = int(sys.argv[1]), sys.argv[2]
 now = datetime.datetime.now(datetime.timezone.utc)
 def key(v): return tuple(int(x) for x in v.lstrip("v").split("."))
@@ -55,13 +55,11 @@ def gt(a, b):
     ka, kb = key(a), key(b); n = max(len(ka), len(kb))
     return ka + (0,) * (n - len(ka)) > kb + (0,) * (n - len(kb))
 cands = []
-for r in json.load(sys.stdin):
-    if r.get("draft") or r.get("prerelease"):
+for line in sys.stdin:                      # "<tag>\t<published_at>" per stable release
+    line = line.rstrip()
+    if not line:
         continue
-    tag = r.get("tag_name") or ""
-    pa = r.get("published_at")
-    if not re.fullmatch(r"v?\d+(\.\d+)*", tag) or not pa:
-        continue
+    tag, pa = line.split("\t", 1)
     dt = datetime.datetime.fromisoformat(pa.replace("Z", "+00:00"))
     cands.append((tag, dt))
 newest = max((c[0] for c in cands), key=key, default="-")
@@ -102,7 +100,34 @@ print(f"{elig}\t{newest}\t{outdated}")
 PY
 )
 
-gh_eligible() { gh_api "repos/$1/releases?per_page=30" | "$PY" -c "$GH_SELECT" "$COOLDOWN_DAYS" "$2"; }
+# Print "<tag>\t<published_at>" for every stable release, following pages (the newest stable past
+# the cooldown can sit behind a first page full of prereleases). Each page is reduced to these two
+# fields immediately, so nothing large is kept. Stops at the last page or after 10 pages.
+GH_PAGE=$(cat <<'PY'
+import json, sys, re
+rels = json.load(sys.stdin)
+print(len(rels))
+for r in rels:
+    if r.get("draft") or r.get("prerelease"):
+        continue
+    tag = r.get("tag_name") or ""
+    pa = r.get("published_at")
+    if re.fullmatch(r"v?\d+(\.\d+)*", tag) and pa:
+        print(f"{tag}\t{pa}")
+PY
+)
+gh_stable_lines() {
+  local repo=$1 page=1 out n lines
+  while [ "$page" -le 10 ]; do
+    out=$(gh_api "repos/$repo/releases?per_page=100&page=$page" | "$PY" -c "$GH_PAGE")
+    n=${out%%$'\n'*}; n=${n%$'\r'}        # python on Windows emits CRLF; drop the CR
+    case "$out" in *$'\n'*) lines=${out#*$'\n'} ;; *) lines="" ;; esac
+    [ -n "$lines" ] && printf '%s\n' "$lines"
+    { [ -z "$n" ] || [ "$n" -lt 100 ]; } && break
+    page=$((page + 1))
+  done
+}
+gh_eligible() { gh_stable_lines "$1" | "$PY" -c "$GH_SELECT" "$COOLDOWN_DAYS" "$2"; }
 pypi_eligible() { curl -fsSL "https://pypi.org/pypi/$1/json" | "$PY" -c "$PYPI_SELECT" "$COOLDOWN_DAYS" "$2"; }
 
 cooldown_note() {  # <eligible> <newest> : " (X in cooldown)" when a higher version is still too fresh
