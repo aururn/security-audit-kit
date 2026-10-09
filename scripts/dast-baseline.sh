@@ -56,10 +56,12 @@ if [ ! -f "$REPORTS/zap-baseline.json" ]; then
   echo "ZAP baseline did not run: no report was produced (docker/zap exit $rc)." >&2
   exit 2
 fi
+# 0/1/2 mean the scan finished (clean / FAIL alerts / WARN alerts); any other code is a ZAP tool
+# failure (e.g. 3), which a produced report does not make trustworthy — treat it as an error.
 case $rc in
   0) echo "ZAP baseline completed: no alert above the threshold." ;;
   1) echo "ZAP baseline completed: FAIL-level alerts reported — triage the report." ;;
   2) echo "ZAP baseline completed: WARN-level alerts reported — triage the report." ;;
-  *) echo "ZAP baseline reported exit $rc but wrote a report — triage the report." ;;
+  *) echo "ZAP baseline failed (exit $rc); the scan did not complete, do not trust the report." >&2; exit 2 ;;
 esac
 echo "Reports: $REPORTS/zap-baseline.json and zap-baseline.html"
