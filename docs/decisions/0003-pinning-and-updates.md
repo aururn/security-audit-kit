@@ -30,6 +30,8 @@
 | バイナリ・Python のツール | `scripts/update-tools.sh`。チェックサムは公式のファイルから取る（ダウンロードしたものを自分で計算した値は使わない）。週1回の `pin-freshness` ワークフローが `--check` を実行し、古ければ失敗して所有者に通知する |
 | ベースイメージ・Actions | Dependabot |
 
+`update-tools.sh` と `pin-freshness` は、公開から 7 日以上（`COOLDOWN_DAYS`）経った版だけを更新の候補にする。乗っ取られたリリースは数時間〜数日で取り下げられることが多く（例: 2026年3月の axios 1.14.1 / 0.30.4 は約3時間で削除）、待つことで取り込みを避ける。Dependabot のベースイメージと Actions の cooldown（7日）と同じ考え方。cooldown 中の新しい版は知らせるが採用せず、`--check` も失敗させない。
+
 更新したら、必ずイメージを作り直し、カナリア（[0005](0005-canary-test.md)）を通す。
 
 ## 結果
