@@ -20,7 +20,7 @@
 
 - [ ] ★ 認可を Server Action / Route Handler の中でも確かめている（Middleware だけに任せない。`checklists/web-api.md` の認証・認可）
   - `'use server'` の関数は公開 API と同じ。先頭で session と権限を検査する
-- [ ] Auth.js（NextAuth）を使う場合、`AUTH_SECRET` が設定され、本番は Cookie が `Secure`・`HttpOnly`・`SameSite` 付き
+- [ ] Auth.js / NextAuth を使う場合、署名用の secret が設定されている（版により `AUTH_SECRET`、`NEXTAUTH_SECRET`、または設定の `secret`。名前ではなく実効の設定を見る）。本番は Cookie が `Secure`・`HttpOnly`・`SameSite` 付き
   - `trustHost` や `redirectProxyUrl` の設定が、意図したホストだけを信頼している（open redirect・アカウント乗っ取りの経路）
 - [ ] ★ JWT を自前で検証する場合、`alg` を固定し `none` を拒否、署名と `exp`・`aud`・`iss` を検証している
   - ライブラリ任せでも、鍵の種別（HS と RS の取り違え）と検証の有無を確認する
