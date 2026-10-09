@@ -32,8 +32,18 @@ SCAN_WORKTREE=1 bash "$KIT/scripts/run-scan.sh" . "${TMPDIR:-/tmp}/pre-publish-r
 ```
 
 In `summary.txt`, `gitleaks` covers every commit on every ref and `gitleaks-worktree` covers the
-files on disk, including gitignored ones such as `.env.local`. A "SHALLOW clone" note means older
-history was not scanned: run `git fetch --unshallow` and scan again.
+files on disk, including gitignored ones such as `.env.local`.
+
+- Do not publish until `gitleaks` is `ok`. A "SHALLOW clone" note means older history was not
+  scanned: run `git fetch --unshallow` and scan again.
+- `skipped` with "linked worktree" means this directory was made with `git worktree add`, and its
+  git data is outside what the container can see. Scan the main checkout instead: it is the parent
+  of `git rev-parse --path-format=absolute --git-common-dir`. Refs are shared, so its `--all`
+  history scan covers this worktree's branch too.
+- `gitleaks-worktree` skips build output and dependencies (`node_modules/`, `.next/`, `dist/`,
+  `build/`). Only commits are published, and the history scan reads every committed file,
+  including those directories. So commit everything you will publish first, then scan. If you
+  commit again afterwards, scan again.
 
 If `docker version` fails, ask the user to install or start Docker Desktop. If they decline and
 `gitleaks` is installed locally, run it directly and say in the report that an unpinned local
