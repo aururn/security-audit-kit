@@ -31,7 +31,25 @@ esac
 # Inside the container, the host machine is host.docker.internal.
 TARGET_URL=$(printf '%s' "$URL" | sed -E 's#://(localhost|127\.0\.0\.1)#://host.docker.internal#')
 
-MSYS_NO_PATHCONV=1 docker run --rm -t \
-  --add-host=host.docker.internal:host-gateway \
-  -v "$REPORTS:/zap/wrk" \
-  "$ZAP_IMAGE" zap-baseline.py -t "$TARGET_URL" -J zap-baseline.json -r zap-baseline.html -I
+# The ZAP image runs as uid 1000; on Linux it cannot write reports into a bind mount owned by
+# another uid, so run as the caller and give ZAP a writable HOME (same reasoning as
+# docs/decisions/0001). Docker Desktop (Windows/macOS) maps bind mounts writable for any uid.
+# No -t: there is no TTY under CI.
+RUN_ARGS=(--rm --add-host=host.docker.internal:host-gateway -v "$REPORTS:/zap/wrk")
+if [ "$(uname -s)" = "Linux" ]; then
+  RUN_ARGS+=(--user "$(id -u):$(id -g)" -e HOME=/tmp)
+fi
+
+# zap-baseline.py exits 0 (no alert over threshold), 1 (FAIL-level alert) or 2 (WARN-level alert)
+# when the scan ran, and only other codes when it could not run. Findings are not a script error:
+# report them and point at the output, so a completed scan is never mistaken for a tool failure.
+rc=0
+MSYS_NO_PATHCONV=1 docker run "${RUN_ARGS[@]}" \
+  "$ZAP_IMAGE" zap-baseline.py -t "$TARGET_URL" -J zap-baseline.json -r zap-baseline.html -I || rc=$?
+case $rc in
+  0) echo "ZAP baseline completed: no alert above the threshold." ;;
+  1) echo "ZAP baseline completed: FAIL-level alerts reported — triage the report." ;;
+  2) echo "ZAP baseline completed: WARN-level alerts reported — triage the report." ;;
+  *) echo "ZAP baseline did not complete (docker/zap exit $rc)." >&2; exit 2 ;;
+esac
+echo "Reports: $REPORTS/zap-baseline.json and zap-baseline.html"
