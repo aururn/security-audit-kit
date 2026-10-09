@@ -61,7 +61,13 @@ expect_target() {
 
 expect_refused 'http://localhost:1@evil.example/'
 expect_refused 'http://127.0.0.1:80@evil.example'
-expect_refused 'http://user:pass@localhost:3000/'
+# Userinfo is refused even for an owned target. Without the userinfo check these would be scanned,
+# so they fail if that check goes away (the cases above are also caught by the port check).
+DAST_I_OWN_THIS_TARGET=1 expect_refused 'http://localhost@evil.example/'
+DAST_I_OWN_THIS_TARGET=1 expect_refused 'https://user@staging.example.com/'
+# The refusal must not echo credentials from the URL.
+expect_refused 'http://user:s3cr3t-value@localhost:3000/'
+if [[ $OUT == *s3cr3t-value* ]]; then fail "refusal message leaks the password"; else pass "refusal message hides the password"; fi
 expect_refused 'https://example.com/'
 expect_refused 'ftp://localhost/'
 expect_refused 'localhost:3000'

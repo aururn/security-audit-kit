@@ -19,7 +19,8 @@ ZAP_IMAGE=ghcr.io/zaproxy/zaproxy:2.17.0@sha256:781a2bdaea47324e7bab583e2263f21d
 
 # Split the URL ourselves and refuse anything ambiguous: a URL whose authority carries userinfo
 # (http://localhost:1@evil.example) names localhost but connects to evil.example.
-refuse() { echo "Refusing to scan '$URL': $1" >&2; exit 2; }
+# The message never repeats the URL: it may carry credentials.
+refuse() { echo "Refusing to scan: $1" >&2; exit 2; }
 case "$URL" in *://*) ;; *) refuse "not an absolute http(s) URL" ;; esac
 SCHEME=$(printf '%s' "${URL%%://*}" | tr '[:upper:]' '[:lower:]')
 case "$SCHEME" in http|https) ;; *) refuse "only http and https are supported" ;; esac
