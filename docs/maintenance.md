@@ -12,6 +12,17 @@ tests/run-canary.sh               # 更新後、全ツールが検出できる�
 - 週1回の `Pin freshness` ワークフローが `--check` を実行し、古い版があれば失敗して通知します
 - ベースイメージのダイジェストと Actions の SHA は Dependabot が更新します（公開から7日待つ cooldown 付き）
 
+## 入れた skills を新しくする
+
+`scripts/install-skills.sh` は、入れた各 skill にキットのコミット（`.kit-version`）を記録します。
+
+```sh
+scripts/install-skills.sh --check   # 入れた skill が、今のキットより古いコミット由来かを調べる
+scripts/install-skills.sh --force    # 古いものを入れ直す
+```
+
+キットを `git pull` した後に `--check` で確かめ、古ければ `--force` で入れ直します。
+
 ## テスト
 
 ```sh
