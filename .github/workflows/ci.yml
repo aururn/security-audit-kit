@@ -30,6 +30,11 @@ jobs:
       - name: shellcheck
         run: shellcheck docker/scan.sh scripts/*.sh tests/*.sh
 
+      # Installed skills carry their own copies of the shared checklists, principles and
+      # templates under references/. Fail if those copies drift from the root sources.
+      - name: Skill references are in sync
+        run: scripts/build-skill-references.sh --check
+
       # Builds the image (verifying every pinned checksum and that no Semgrep ruleset is empty)
       # and scans this repository with it. The kit itself must be clean.
       - name: Scan this repository with the kit
