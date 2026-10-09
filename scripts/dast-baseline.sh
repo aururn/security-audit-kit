@@ -43,15 +43,23 @@ if [ "$(uname -s)" = "Linux" ]; then
 fi
 
 # zap-baseline.py exits 0 (no alert over threshold), 1 (FAIL-level alert) or 2 (WARN-level alert)
-# when the scan ran, and only other codes when it could not run. Findings are not a script error:
-# report them and point at the output, so a completed scan is never mistaken for a tool failure.
+# when the scan ran, and only other codes when it could not run. But `docker run` itself can exit
+# 1 without ever starting ZAP (daemon unreachable, image pull failure), so a non-zero code alone
+# cannot be read as scan findings. Clear any old report first and require a fresh one: only then
+# are findings (not a tool failure) reported, so a completed scan is never mistaken for an error
+# and an error is never mistaken for a completed scan.
+rm -f "$REPORTS/zap-baseline.json" "$REPORTS/zap-baseline.html"
 rc=0
 MSYS_NO_PATHCONV=1 docker run "${RUN_ARGS[@]}" \
   "$ZAP_IMAGE" zap-baseline.py -t "$TARGET_URL" -J zap-baseline.json -r zap-baseline.html -I || rc=$?
+if [ ! -f "$REPORTS/zap-baseline.json" ]; then
+  echo "ZAP baseline did not run: no report was produced (docker/zap exit $rc)." >&2
+  exit 2
+fi
 case $rc in
   0) echo "ZAP baseline completed: no alert above the threshold." ;;
   1) echo "ZAP baseline completed: FAIL-level alerts reported — triage the report." ;;
   2) echo "ZAP baseline completed: WARN-level alerts reported — triage the report." ;;
-  *) echo "ZAP baseline did not complete (docker/zap exit $rc)." >&2; exit 2 ;;
+  *) echo "ZAP baseline reported exit $rc but wrote a report — triage the report." ;;
 esac
 echo "Reports: $REPORTS/zap-baseline.json and zap-baseline.html"
