@@ -48,6 +48,33 @@ else
   record gitleaks skipped null "" "not a git repository"
 fi
 
+# 1b. Optional: also scan the working tree, not just history. Catches secrets in uncommitted or
+# gitignored files (e.g. .env.local) that `gitleaks git` never sees. Off by default because
+# scanning a checkout is noisy; build output and vendored deps are excluded so it stays usable.
+if [ "${SCAN_WORKTREE:-0}" = "1" ] && [ -d "$SRC" ]; then
+  wt_cfg="$OUT/.gitleaks-worktree.toml"
+  cat > "$wt_cfg" <<'TOML'
+title = "worktree"
+[extend]
+useDefault = true
+[[allowlists]]
+description = "build output and vendored dependencies"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)\.next/''',
+  '''(^|/)dist/''',
+  '''(^|/)build/''',
+  '''(^|/)\.git/''',
+]
+TOML
+  if gitleaks dir "$SRC" --config "$wt_cfg" --redact --no-banner --exit-code 0 \
+      --report-format json --report-path "$OUT/gitleaks-worktree.json" >"$OUT/gitleaks-worktree.log" 2>&1; then
+    record gitleaks-worktree ok "$(count_json "$OUT/gitleaks-worktree.json" length)" gitleaks-worktree.json "secrets in the working tree (build output and vendored deps excluded)"
+  else
+    record gitleaks-worktree error null gitleaks-worktree.log "see gitleaks-worktree.log"
+  fi
+fi
+
 # 2. Dependencies: known vulnerabilities and known-malicious packages (MAL-*) from OSV.
 osv_note="vulnerability entries (incl. MAL-*)"
 if find "$SRC" -name osv-scanner.toml -not -path '*/node_modules/*' -print -quit 2>/dev/null | grep -q .; then

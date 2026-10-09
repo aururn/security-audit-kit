@@ -6,6 +6,8 @@ scripts/run-scan.sh <対象ディレクトリ> [レポートの出力先]
 
 Docker のイメージをビルドし、対象を読み取り専用でマウントしてスキャンします。イメージは linux/amd64 と linux/arm64（Apple Silicon）の両方で動きます。
 
+既定では gitleaks は git の履歴を検査します。`SCAN_WORKTREE=1 scripts/run-scan.sh ...` を付けると、作業ツリー（未コミットや gitignore 済みの `.env.local` など）も検査します（`gitleaks-worktree`）。ビルド成果物と vendored 依存（`node_modules/`、`.next/`、`dist/`、`build/`）は除外します。
+
 ## ツール
 
 | ツール | 版 | 見るもの |
