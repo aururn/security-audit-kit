@@ -16,6 +16,16 @@
 - [ ] `NEXT_PUBLIC_` が付いた環境変数に秘密情報がない。旧名から移行した場合、旧名がどこから読まれているか確認した
 - [ ] Server Actions が意図せず公開されていない（`'use server'` の関数は外部から呼べる API と同じ扱い）
 
+## 認証とセッション
+
+- [ ] ★ 認可を Server Action / Route Handler の中でも確かめている（Middleware だけに任せない。`checklists/web-api.md` の認証・認可）
+  - `'use server'` の関数は公開 API と同じ。先頭で session と権限を検査する
+- [ ] Auth.js / NextAuth を使う場合、署名用の secret が設定されている（版により `AUTH_SECRET`、`NEXTAUTH_SECRET`、または設定の `secret`。名前ではなく実効の設定を見る）。本番は Cookie が `Secure`・`HttpOnly`・`SameSite` 付き
+  - `trustHost` や `redirectProxyUrl` の設定が、意図したホストだけを信頼している（open redirect・アカウント乗っ取りの経路）
+- [ ] ★ JWT を自前で検証する場合、`alg` を固定し `none` を拒否、署名と `exp`・`aud`・`iss` を検証している
+  - ライブラリ任せでも、鍵の種別（HS と RS の取り違え）と検証の有無を確認する
+- [ ] ログアウトやパスワード変更で、既存のセッション（と保存した JWT）が無効になる
+
 ## 描画とキャッシュ
 
 - [ ] ★ ルートレイアウトで `cookies()` / `headers()` を読むと全ページが動的レンダリングになる。意図しているか確認した（課金に直結。`checklists/cost-and-abuse.md`）
