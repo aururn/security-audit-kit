@@ -32,12 +32,14 @@ esac
 TARGET_URL=$(printf '%s' "$URL" | sed -E 's#://(localhost|127\.0\.0\.1)#://host.docker.internal#')
 
 # The ZAP image runs as uid 1000; on Linux it cannot write reports into a bind mount owned by
-# another uid, so run as the caller and give ZAP a writable HOME (same reasoning as
-# docs/decisions/0001). Docker Desktop (Windows/macOS) maps bind mounts writable for any uid.
-# No -t: there is no TTY under CI.
+# another uid, so run as the caller (same reasoning as docs/decisions/0001). A caller uid that is
+# absent from the image's passwd (e.g. GitHub Actions' 1001) has no home, so point both Python
+# (HOME) and the ZAP JVM (user.home) at a writable dir, or ZAP tries to write /zap/?/.ZAP and
+# fails before producing reports. Docker Desktop (Windows/macOS) maps bind mounts writable for
+# any uid. No -t: there is no TTY under CI.
 RUN_ARGS=(--rm --add-host=host.docker.internal:host-gateway -v "$REPORTS:/zap/wrk")
 if [ "$(uname -s)" = "Linux" ]; then
-  RUN_ARGS+=(--user "$(id -u):$(id -g)" -e HOME=/tmp)
+  RUN_ARGS+=(--user "$(id -u):$(id -g)" -e HOME=/tmp -e JAVA_TOOL_OPTIONS=-Duser.home=/tmp)
 fi
 
 # zap-baseline.py exits 0 (no alert over threshold), 1 (FAIL-level alert) or 2 (WARN-level alert)
