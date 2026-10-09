@@ -36,6 +36,8 @@ if git -C "$SRC" rev-parse --git-dir >/dev/null 2>&1; then
   if [ "$(git -C "$SRC" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
     gl_note="secrets in git history (SHALLOW clone: older commits not scanned)"
   fi
+  # A target-side ignore file suppresses findings; a clean count then is not "nothing to find".
+  [ -f "$SRC/.gitleaksignore" ] && gl_note="$gl_note (.gitleaksignore present: some findings suppressed)"
   if gitleaks git "$SRC" --log-opts="--all" --redact --no-banner --exit-code 0 \
       --report-format json --report-path "$OUT/gitleaks.json" >"$OUT/gitleaks.log" 2>&1; then
     record gitleaks ok "$(count_json "$OUT/gitleaks.json" length)" gitleaks.json "$gl_note"
@@ -47,9 +49,13 @@ else
 fi
 
 # 2. Dependencies: known vulnerabilities and known-malicious packages (MAL-*) from OSV.
+osv_note="vulnerability entries (incl. MAL-*)"
+if find "$SRC" -name osv-scanner.toml -not -path '*/node_modules/*' -print -quit 2>/dev/null | grep -q .; then
+  osv_note="$osv_note (osv-scanner.toml present: some vulns may be ignored)"
+fi
 osv-scanner scan source -r "$SRC" --format json --output "$OUT/osv.json" >"$OUT/osv.log" 2>&1
 case $? in
-  0|1) record osv-scanner ok "$(count_json "$OUT/osv.json" '[.results[]?.packages[]?.vulnerabilities[]?] | length')" osv.json "vulnerability entries (incl. MAL-*)" ;;
+  0|1) record osv-scanner ok "$(count_json "$OUT/osv.json" '[.results[]?.packages[]?.vulnerabilities[]?] | length')" osv.json "$osv_note" ;;
   128) record osv-scanner skipped null "" "no lockfiles found" ;;
   *) record osv-scanner error null osv.log "see osv.log" ;;
 esac
@@ -60,7 +66,26 @@ semgrep scan --metrics=off --disable-version-check --quiet --json --output "$OUT
   --exclude node_modules --exclude .next --exclude dist --exclude build \
   "$SRC" >"$OUT/semgrep.log" 2>&1
 if jq -e '.results | type == "array"' "$OUT/semgrep.json" >/dev/null 2>&1; then
-  record semgrep ok "$(count_json "$OUT/semgrep.json" '.results | length')" semgrep.json "SAST findings"
+  sg_note="SAST findings"
+  # Files semgrep could not parse or that timed out are reported in .errors, not .results, so a
+  # low finding count can hide unscanned code. Drop only the benign partial-parse warnings
+  # (semgrep's shell/Dockerfile grammars are incomplete and always emit these); a full syntax
+  # failure, timeout or any higher-level error is still counted, whatever the file type.
+  # Drop only the verified parser noise: a warn-level PartialParsing on a shell script or
+  # Dockerfile (semgrep's grammars for those are incomplete). Keep everything else, including a
+  # PartialParsing on a .js/.ts file (part of application code went unanalyzed) and any Syntax
+  # error, timeout or higher-level error on any file. .type is an array ["PartialParsing", …] for
+  # partial parses but a plain string ("Syntax error", …) otherwise, so normalise it first.
+  errs=$(jq '[ .errors[]?
+    | (if (.type | type) == "array" then .type[0] else .type end) as $t
+    | ((.path // "") | ascii_downcase) as $p
+    | select( ( ($t == "PartialParsing") and (.level == "warn")
+                and ( ($p|endswith(".sh")) or ($p|endswith(".bash")) or ($p|endswith("dockerfile")) )
+              ) | not )
+  ] | length' "$OUT/semgrep.json" 2>/dev/null); case "$errs" in ''|*[!0-9]*) errs=0 ;; esac
+  [ "$errs" -gt 0 ] && sg_note="$sg_note ($errs scan errors: some files not analyzed)"
+  [ -f "$SRC/.semgrepignore" ] && sg_note="$sg_note (.semgrepignore present: some paths skipped)"
+  record semgrep ok "$(count_json "$OUT/semgrep.json" '.results | length')" semgrep.json "$sg_note"
 else
   record semgrep error null semgrep.log "see semgrep.log"
 fi
