@@ -98,6 +98,9 @@ curl -s -o /dev/null -w '%{http_code} %{size_download}\n' https://example.app/so
 
 ## 6. Report
 
+Follow the report style in `references/principles.md` (報告の書式): lead with the single most
+severe finding and its fix, no preamble, no closing pleasantries.
+
 For each finding: severity, location (`file:line`), what an attacker does, evidence
 (what you reproduced and how), fix direction. Keep three lists separate:
 

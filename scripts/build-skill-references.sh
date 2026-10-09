@@ -18,6 +18,7 @@ CHECK=0
 MAPPINGS=(
   "security-audit|AGENTS.md|principles.md"
   "security-audit|checklists|checklists"
+  "cost-abuse-review|AGENTS.md|principles.md"
   "cost-abuse-review|checklists/cost-and-abuse.md|checklists/cost-and-abuse.md"
   "security-fix-workflow|templates/issue-security.md|templates/issue-security.md"
   "security-fix-workflow|templates/pull_request.md|templates/pull_request.md"
