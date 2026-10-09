@@ -14,7 +14,7 @@ tests/run-canary.sh               # 更新後、全ツールが検出できる�
 
 ## 入れた skills を新しくする
 
-plugin として入れた場合は、次の 2 行で新しくします。plugin は版を固定していないので、コミットごとに新しい版が届きます（[0006](decisions/0006-plugin-distribution.md)）。
+plugin として入れた場合は、次の 2 行で新しくします。plugin は版を固定していないので、コミットごとに新しい版が届きます（[0007](decisions/0007-plugin-distribution.md)）。
 
 ```sh
 claude plugin marketplace update security-audit-kit

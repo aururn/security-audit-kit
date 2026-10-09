@@ -1,4 +1,4 @@
-# 0006 Claude Code の plugin として配る
+# 0007 Claude Code の plugin として配る
 
 - 状態: 採用
 - 日付: 2026-10-10
