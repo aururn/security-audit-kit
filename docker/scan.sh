@@ -68,8 +68,12 @@ semgrep scan --metrics=off --disable-version-check --quiet --json --output "$OUT
 if jq -e '.results | type == "array"' "$OUT/semgrep.json" >/dev/null 2>&1; then
   sg_note="SAST findings"
   # Files semgrep could not parse or that timed out are reported in .errors, not .results, so a
-  # low finding count can hide unscanned code. Surface the count.
-  errs=$(count_json "$OUT/semgrep.json" '.errors | length'); case "$errs" in ''|*[!0-9]*) errs=0 ;; esac
+  # low finding count can hide unscanned code. Count only errors on files the baked JS/TS rulesets
+  # actually target: semgrep's shell and Dockerfile grammars are incomplete and always emit
+  # partial-parse warnings that mean nothing here.
+  errs=$(jq '[.errors[]? | (.path // "") | ascii_downcase
+              | select((endswith(".sh") or endswith(".bash") or endswith("dockerfile")) | not)] | length' \
+         "$OUT/semgrep.json" 2>/dev/null); case "$errs" in ''|*[!0-9]*) errs=0 ;; esac
   [ "$errs" -gt 0 ] && sg_note="$sg_note ($errs scan errors: some files not analyzed)"
   [ -f "$SRC/.semgrepignore" ] && sg_note="$sg_note (.semgrepignore present: some paths skipped)"
   record semgrep ok "$(count_json "$OUT/semgrep.json" '.results | length')" semgrep.json "$sg_note"
