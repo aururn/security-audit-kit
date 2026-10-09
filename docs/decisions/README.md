@@ -10,3 +10,4 @@
 | [0003](0003-pinning-and-updates.md) | ツールの固定と更新の方法 | 採用 |
 | [0004](0004-semgrep-rules-baked.md) | Semgrep のルールをイメージに取り込む | 採用 |
 | [0005](0005-canary-test.md) | キットの検出力をカナリアで確かめる | 採用 |
+| [0006](0006-base-image-mirror.md) | ベースイメージを Docker Hub のミラーから取る | 採用 |
