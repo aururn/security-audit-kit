@@ -8,8 +8,8 @@ description: Audit a web app (especially Next.js / Node apps that proxy to LLM o
 Find vulnerabilities that are actually exploitable, prove them, and report them with evidence.
 Code reading produces candidates; reproduction produces findings.
 
-Read `AGENTS.md` of this kit first (principles, severity, prohibitions). Checklists live in
-`checklists/` of this kit; this skill says when to apply which.
+Read `references/principles.md` first (principles, severity, prohibitions; a copy of the kit's
+`AGENTS.md`). Checklists live in `references/checklists/`; this skill says when to apply which.
 
 ## 0. Scope and threat model (write it down before scanning)
 
@@ -21,7 +21,7 @@ Answer in the report:
 - Is the app embedded (iframe) on another site? Which origins are legitimate?
 - Which repository and branch actually deploys to production? (Do not assume. A fork or a
   mirror may be the real deploy source.)
-- Is the repository public? If so, findings go to a private channel (see AGENTS.md).
+- Is the repository public? If so, findings go to a private channel (see `references/principles.md`).
 
 ## 1. Map the entry points
 
@@ -35,8 +35,9 @@ Useful greps: `export async function (GET|POST|PUT|DELETE)`, `'use server'`, `pr
 
 ## 2. Automated scans
 
-Run the container (see `README.md`): secrets in full history (gitleaks), dependencies incl.
-known-malicious packages (osv-scanner), SAST (semgrep), GitHub Actions (zizmor, actionlint).
+From a clone of this kit, run the scanner container: secrets in full history (gitleaks),
+dependencies incl. known-malicious packages (osv-scanner), SAST (semgrep), GitHub Actions
+(zizmor, actionlint). Details: the kit's `docs/scanner.md`.
 
 ```sh
 scripts/run-scan.sh /path/to/target ./reports
@@ -53,13 +54,13 @@ Apply the checklists that match the stack:
 
 | Area | Checklist |
 | --- | --- |
-| API routes, auth, CSRF, input, errors, cookies, headers, iframe | `checklists/web-api.md` |
-| Next.js / React specifics | `checklists/nextjs-react.md` |
-| LLM / chatbot apps | `checklists/llm-app.md` |
-| Billing and abuse | `checklists/cost-and-abuse.md` |
-| Dependencies and install-time code | `checklists/supply-chain.md` |
-| CI / GitHub Actions | `checklists/ci-github-actions.md` |
-| Secrets and publishing a repo | `checklists/secrets-and-publishing.md` |
+| API routes, auth, CSRF, input, errors, cookies, headers, iframe | `references/checklists/web-api.md` |
+| Next.js / React specifics | `references/checklists/nextjs-react.md` |
+| LLM / chatbot apps | `references/checklists/llm-app.md` |
+| Billing and abuse | `references/checklists/cost-and-abuse.md` |
+| Dependencies and install-time code | `references/checklists/supply-chain.md` |
+| CI / GitHub Actions | `references/checklists/ci-github-actions.md` |
+| Secrets and publishing a repo | `references/checklists/secrets-and-publishing.md` |
 
 Trace data from the request to the sensitive sink. Pay special attention to SDKs that build
 upstream URLs by string concatenation (IDs from the URL path joined without encoding let `..`

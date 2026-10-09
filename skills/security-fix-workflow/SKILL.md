@@ -18,7 +18,7 @@ Each fix is one rule, one issue, one PR. Small PRs make reviews meaningful and r
 1. **Issue** (the plan): summary, background, actual behaviour, required behaviour as brief
    Given-When-Then, test design (rule or risk, owning test layer, representative scenarios,
    upper-layer wiring, reason if not automated), non-scope, files, acceptance criteria,
-   verification steps, risk and rollback. Template: `templates/issue-security.md`.
+   verification steps, risk and rollback. Template: `references/templates/issue-security.md`.
    Do not paste copy-ready exploit payloads.
 2. **Branch** from the latest base: `fix/issue-<n>-<slug>`.
 3. **Implement** the smallest change that enforces the rule. Put the decision logic in a pure
@@ -32,7 +32,7 @@ Each fix is one rule, one issue, one PR. Small PRs make reviews meaningful and r
    state, uploads, iframe embeds and long inputs. Independent reviews often catch these.
 7. **PR** (the result): actual behaviour, differences from the issue, final test design, and only
    results actually run on the current head. Exactly one `Closes #<n>`. Template:
-   `templates/pull_request.md`.
+   `references/templates/pull_request.md`.
 8. **Independent review**: `codex review --base <base>` or `/security-review`. Fix P0/P1 and valid
    P2, push, and review again until clean. Record every review round in the PR.
 9. **CI** on the current head must pass. Then merge (`gh pr merge --merge --delete-branch`) only if
