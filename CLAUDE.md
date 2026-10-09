@@ -6,7 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Claude Code 固有の補足
 
-- skills は `skills/` にある。`scripts/install-skills.sh` で `~/.claude/skills`（と `~/.codex/skills`）に入れて使う。
+- skills は `skills/` にある。リポジトリ全体が Claude Code の plugin（`.claude-plugin/`）でもある。
+  plugin として入れるか、`scripts/install-skills.sh` で `~/.claude/skills`（と `~/.codex/skills`）に入れて使う。
+- `.claude-plugin/` を変えたら `claude plugin validate .` で確かめる。version を書かない、ルートの
+  CLAUDE.md は読まれない、の 2 件の警告は意図どおり（`docs/decisions/0006-plugin-distribution.md`）。
 - 差分のセキュリティレビューには組み込みの `/security-review` を使える。対象は「現在のブランチの差分」なので、
   修正前のコミットを base にしたブランチで実行する。
 - 並列でサブエージェントを使う場合:

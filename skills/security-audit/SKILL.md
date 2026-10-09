@@ -11,6 +11,32 @@ Code reading produces candidates; reproduction produces findings.
 Read `references/principles.md` first (principles, severity, prohibitions; a copy of the kit's
 `AGENTS.md`). Checklists live in `references/checklists/`; this skill says when to apply which.
 
+## Find the kit
+
+The scanner lives in the kit, not in this skill directory. Use the first of these that contains
+`scripts/run-scan.sh` as `KIT`:
+
+1. `${CLAUDE_PLUGIN_ROOT}` (installed as a Claude Code plugin; skip this if it still reads
+   literally as `${...}`)
+2. Two directories above this skill's directory (you are reading this from a clone of the kit)
+3. The path on the third line of `.kit-version` in this skill's directory (installed with
+   `scripts/install-skills.sh`)
+4. None of these: clone the kit to a temporary directory. Do not install anything into the
+   user's environment.
+   ```sh
+   git clone --depth 1 https://github.com/aururn/security-audit-kit.git "${TMPDIR:-/tmp}/security-audit-kit"
+   ```
+
+## Target
+
+- **A local directory** (by default, the repository you are working in): audit it in place and do
+  not modify it during the audit.
+- **A GitHub URL**: clone it with full history (no `--depth`), so the secret scan covers every
+  commit. For a private repository, use the user's own access (`gh repo clone`).
+- **A running app URL with no source**: only black-box checks are possible: read-only requests
+  (step 5) and, for localhost or a staging host the user owns, the DAST baseline
+  (`KIT/docs/scanner.md`). State in the report that the code was not reviewed.
+
 ## 0. Scope and threat model (write it down before scanning)
 
 Answer in the report:
@@ -35,13 +61,23 @@ Useful greps: `export async function (GET|POST|PUT|DELETE)`, `'use server'`, `pr
 
 ## 2. Automated scans
 
-From a clone of this kit, run the scanner container: secrets in full history (gitleaks),
-dependencies incl. known-malicious packages (osv-scanner), SAST (semgrep), GitHub Actions
-(zizmor, actionlint). Details: the kit's `docs/scanner.md`.
+Run the kit's scanner container: secrets in full history (gitleaks), dependencies incl.
+known-malicious packages (osv-scanner), SAST (semgrep), GitHub Actions (zizmor, actionlint).
+Write the reports outside the target, so they are never committed. The first run builds the
+image, which takes a few minutes. Details: `KIT/docs/scanner.md`.
 
 ```sh
-scripts/run-scan.sh /path/to/target ./reports
+bash "$KIT/scripts/run-scan.sh" /path/to/target "${TMPDIR:-/tmp}/security-audit-reports"
 ```
+
+Read `summary.txt` first. A tool with `error` did not scan; a `note` says what was not covered
+(shallow clone, ignore files in the target, files semgrep could not parse, stale rules). Carry
+both into the report's coverage.
+
+If `docker version` fails, Docker is missing or not running. Ask the user to install or start
+Docker Desktop, because the scan needs it. If they decline, continue with steps 3 to 6 and put
+"automated scans not run (no Docker)" at the top of the report's coverage. Do not substitute
+scanners downloaded on the spot: they are not pinned or verified.
 
 Triage every hit. Typical false positives: minified vendor code, build output (`.next/`,
 `dist/`), test fixtures with fake keys. Confirm build output is gitignored and never committed

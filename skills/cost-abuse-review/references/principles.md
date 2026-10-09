@@ -7,6 +7,22 @@
 手順の詳細は `skills/` 以下、確認項目は `checklists/` 以下を正本にします。ここには
 「どの作業にも共通する判断の基準」だけを書きます。
 
+## このキットの URL を渡されたとき
+
+利用者がこのリポジトリの URL を貼って、監査やレビューを頼んだときの進め方です。
+利用者の環境（`~/.claude`、`~/.codex` など）には何も入れません。
+
+1. このキットを一時ディレクトリに clone する
+   `git clone --depth 1 https://github.com/aururn/security-audit-kit.git "${TMPDIR:-/tmp}/security-audit-kit"`
+2. 頼まれた内容に合う skill の `SKILL.md` を、clone した中から読み、その手順に従う
+   - 脆弱性を調べる、レビューする：`skills/security-audit/SKILL.md`
+   - 公開する前に秘密情報を確かめる：`skills/pre-publish-secret-scan/SKILL.md`
+   - 見つかったものを直す：`skills/security-fix-workflow/SKILL.md`
+   - 高額請求にならないか確かめる：`skills/cost-abuse-review/SKILL.md`
+3. 対象の指定がなければ、利用者が今作業しているリポジトリを対象にする
+
+plugin として入れるかどうかは、利用者が決めます（`README.md` の「使い始める」）。
+
 ## 基本原則
 
 1. **読んで終わりにしない。再現できるものは再現する。**

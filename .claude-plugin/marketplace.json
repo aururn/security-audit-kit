@@ -1,0 +1,17 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
+  "name": "security-audit-kit",
+  "description": "security-audit-kit: audit and fix web apps with an AI coding agent.",
+  "owner": {
+    "name": "aururn",
+    "url": "https://github.com/aururn"
+  },
+  "plugins": [
+    {
+      "name": "security-audit-kit",
+      "description": "Security audit, pre-publish secret scan, fix workflow and cost-abuse review skills, with pinned scanners in a container.",
+      "source": "./",
+      "category": "security"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "security-audit-kit",
+  "description": "Find, reproduce and fix vulnerabilities and runaway-cost risks in web apps, including mistakes typical of AI-written code. Pinned scanners in a container, checklists, and audit/fix skills.",
+  "author": {
+    "name": "aururn",
+    "url": "https://github.com/aururn"
+  },
+  "homepage": "https://github.com/aururn/security-audit-kit",
+  "repository": "https://github.com/aururn/security-audit-kit",
+  "license": "Apache-2.0",
+  "keywords": ["security", "audit", "vulnerability", "secrets", "sast", "llm", "nextjs"]
+}

@@ -17,8 +17,29 @@ Scan everything that will be published, triage every hit, and only then push.
 
 ## 2. Scan with values redacted
 
+Use the kit's scanner: its gitleaks is pinned and checksum-verified. Use the first of these that
+contains `scripts/run-scan.sh` as `KIT`:
+
+1. `${CLAUDE_PLUGIN_ROOT}` (installed as a Claude Code plugin; skip this if it still reads
+   literally as `${...}`)
+2. Two directories above this skill's directory (a clone of the kit)
+3. The path on the third line of `.kit-version` in this skill's directory (`install-skills.sh`)
+4. None of these: `git clone --depth 1 https://github.com/aururn/security-audit-kit.git "${TMPDIR:-/tmp}/security-audit-kit"`
+
 ```sh
 git fetch --all
+SCAN_WORKTREE=1 bash "$KIT/scripts/run-scan.sh" . "${TMPDIR:-/tmp}/pre-publish-reports"
+```
+
+In `summary.txt`, `gitleaks` covers every commit on every ref and `gitleaks-worktree` covers the
+files on disk, including gitignored ones such as `.env.local`. A "SHALLOW clone" note means older
+history was not scanned: run `git fetch --unshallow` and scan again.
+
+If `docker version` fails, ask the user to install or start Docker Desktop. If they decline and
+`gitleaks` is installed locally, run it directly and say in the report that an unpinned local
+gitleaks was used:
+
+```sh
 gitleaks git . --log-opts="--all" --redact --no-banner --report-format json --report-path gitleaks-history.json
 gitleaks dir . --redact --no-banner --report-format json --report-path gitleaks-dir.json
 ```

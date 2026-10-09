@@ -14,7 +14,14 @@ tests/run-canary.sh               # 更新後、全ツールが検出できる�
 
 ## 入れた skills を新しくする
 
-`scripts/install-skills.sh` は、入れた各 skill にキットのコミット（`.kit-version`）を記録します。
+plugin として入れた場合は、次の 2 行で新しくします。plugin は版を固定していないので、コミットごとに新しい版が届きます（[0006](decisions/0006-plugin-distribution.md)）。
+
+```sh
+claude plugin marketplace update security-audit-kit
+claude plugin update security-audit-kit@security-audit-kit
+```
+
+`scripts/install-skills.sh` で入れた場合は、入れた各 skill にキットのコミットと clone の場所（`.kit-version`）が記録されています。
 
 ```sh
 scripts/install-skills.sh --check   # 入れた skill が、今のキットより古いコミット由来かを調べる
