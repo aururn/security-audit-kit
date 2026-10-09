@@ -40,4 +40,5 @@ free; the review is about the first factor and about caps.
 - Which repository deploys production? Forks and mirrors can be the deploy source.
 
 Report per item: current state (measured), risk, fix, and whether it needs code or a dashboard.
-See `references/checklists/cost-and-abuse.md` for the full list.
+Lead with the item most likely to run up the bill and its fix; follow the report style in
+`references/principles.md` (報告の書式). See `references/checklists/cost-and-abuse.md` for the full list.
