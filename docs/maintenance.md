@@ -38,7 +38,7 @@ CI（amd64・arm64）は、これに加えて次を確かめます。
 
 ## 既知の制限
 
-- Semgrep のルールはイメージのビルド時点のものです。新しいルールを使うには、イメージを作り直します（[#4](https://github.com/aururn/security-audit-kit/issues/4)）
+- Semgrep のルールはイメージのビルド時点のものです。取り込みから `SEMGREP_RULES_MAX_AGE_DAYS`（既定 30）日より古いと、スキャン結果の note に経過日数が出ます。新しいルールにするには、イメージを作り直します（キャッシュを無視するなら `docker build --no-cache docker/`）（[#4](https://github.com/aururn/security-audit-kit/issues/4)）
 - Windows / macOS の Docker Desktop では、コンテナは root で動きます。対象は読み取り専用で、capability も外しています（[#6](https://github.com/aururn/security-audit-kit/issues/6)）
 
 ほかの課題は [Issues](https://github.com/aururn/security-audit-kit/issues) にあります。

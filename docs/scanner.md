@@ -12,7 +12,7 @@ Docker のイメージをビルドし、対象を読み取り専用でマウン�
 | --- | --- | --- |
 | [gitleaks](https://github.com/gitleaks/gitleaks) | 8.30.1 | git の全履歴・全ブランチの秘密情報（値は伏せて出力） |
 | [osv-scanner](https://github.com/google/osv-scanner) | 2.6.0 | lockfile の既知の脆弱性と、悪意あるパッケージ（`MAL-`） |
-| [semgrep](https://github.com/semgrep/semgrep) | 1.178.0 | SAST。ルールセット default / owasp-top-ten / typescript / react / nodejsscan をビルド時に取り込む |
+| [semgrep](https://github.com/semgrep/semgrep) | 1.179.0 | SAST。ルールセット default / owasp-top-ten / typescript / react / nodejsscan をビルド時に取り込む |
 | [zizmor](https://github.com/zizmorcore/zizmor) | 1.30.1 | GitHub Actions の危険な設定 |
 | [actionlint](https://github.com/rhysd/actionlint) | 1.7.12 | GitHub Actions の構文・型の誤り、信頼できない入力のスクリプトへの埋め込み |
 

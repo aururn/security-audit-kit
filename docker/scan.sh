@@ -85,6 +85,16 @@ if jq -e '.results | type == "array"' "$OUT/semgrep.json" >/dev/null 2>&1; then
   ] | length' "$OUT/semgrep.json" 2>/dev/null); case "$errs" in ''|*[!0-9]*) errs=0 ;; esac
   [ "$errs" -gt 0 ] && sg_note="$sg_note ($errs scan errors: some files not analyzed)"
   [ -f "$SRC/.semgrepignore" ] && sg_note="$sg_note (.semgrepignore present: some paths skipped)"
+  # The rules are baked in at image build time (docs/decisions/0004); flag a stale image so a
+  # scan with months-old rules is not mistaken for an up-to-date one. Rebuild to refresh.
+  max_age=${SEMGREP_RULES_MAX_AGE_DAYS:-30}
+  if [ -f "$RULES_DIR/FETCHED_AT" ]; then
+    fetched_epoch=$(date -d "$(cat "$RULES_DIR/FETCHED_AT")" +%s 2>/dev/null || echo "")
+    if [ -n "$fetched_epoch" ]; then
+      age_days=$(( ( $(date -u +%s) - fetched_epoch ) / 86400 ))
+      [ "$age_days" -gt "$max_age" ] && sg_note="$sg_note (rules ${age_days}d old: rebuild image to refresh)"
+    fi
+  fi
   record semgrep ok "$(count_json "$OUT/semgrep.json" '.results | length')" semgrep.json "$sg_note"
 else
   record semgrep error null semgrep.log "see semgrep.log"
