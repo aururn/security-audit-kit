@@ -19,9 +19,10 @@ host_path() {
 }
 TARGET=$(host_path "$1")
 REPORTS=$(host_path "$REPORTS")
+BUILD_CTX=$(host_path "$KIT_DIR/docker")   # docker needs a host path here too, not Git Bash's /c/...
 IMAGE=security-audit-kit:local
 
-docker build -q -t "$IMAGE" "$KIT_DIR/docker" >/dev/null
+docker build -q -t "$IMAGE" "$BUILD_CTX" >/dev/null
 
 # With all capabilities dropped, root cannot write into a directory owned by someone else.
 # On Linux, run as the calling user so the report directory is writable. Docker Desktop
