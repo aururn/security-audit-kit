@@ -29,6 +29,5 @@ CI（amd64・arm64）は、これに加えて次を確かめます。
 
 - Semgrep のルールはイメージのビルド時点のものです。新しいルールを使うには、イメージを作り直します（[#4](https://github.com/aururn/security-audit-kit/issues/4)）
 - Windows / macOS の Docker Desktop では、コンテナは root で動きます。対象は読み取り専用で、capability も外しています（[#6](https://github.com/aururn/security-audit-kit/issues/6)）
-- スキャナのイメージに入る `pyjwt` 2.13.0 に既知の脆弱性があります。Semgrep 1.178.0 が 2.13 系を要求しているため上げられず、理由と期限（2026-12-31）を付けて [`docker/osv-scanner.toml`](../docker/osv-scanner.toml) で受け入れています。スキャナはネットワークを使わず、JWT を検証しないため影響しません（[#2](https://github.com/aururn/security-audit-kit/issues/2)）
 
 ほかの課題は [Issues](https://github.com/aururn/security-audit-kit/issues) にあります。
