@@ -119,7 +119,11 @@ PY
 gh_stable_lines() {
   local repo=$1 page=1 out n lines
   while [ "$page" -le 10 ]; do
-    out=$(gh_api "repos/$repo/releases?per_page=100&page=$page" | "$PY" -c "$GH_PAGE")
+    # A failed fetch or unparseable page must not look like "no releases": fail loudly instead.
+    if ! out=$(gh_api "repos/$repo/releases?per_page=100&page=$page" | "$PY" -c "$GH_PAGE"); then
+      echo "error: could not fetch releases for $repo (page $page)" >&2
+      return 1
+    fi
     n=${out%%$'\n'*}; n=${n%$'\r'}        # python on Windows emits CRLF; drop the CR
     case "$out" in *$'\n'*) lines=${out#*$'\n'} ;; *) lines="" ;; esac
     [ -n "$lines" ] && printf '%s\n' "$lines"
@@ -140,7 +144,7 @@ update_binary() {
   local name=$1 repo=$2 varg=$3 sprefix=$4 sums_tpl=$5 amd_tpl=$6 arm_tpl=$7
   local cur out elig newest od tag latest note
   cur=$(current_arg "$varg")
-  out=$(gh_eligible "$repo" "$cur")
+  out=$(gh_eligible "$repo" "$cur") || { echo "error: release lookup failed for $name ($repo)" >&2; exit 1; }
   IFS=$'\t' read -r elig newest od <<<"$out"
   if [ "$elig" = "-" ]; then report "$name" "$cur" "-" "no version past cooldown"; return; fi
   note=$(cooldown_note "$elig" "$newest")
@@ -173,7 +177,7 @@ update_binary actionlint rhysd/actionlint ACTIONLINT_VERSION ACTIONLINT_SHA256 \
 PY_CHANGED=0
 for pkg in semgrep zizmor; do
   cur=$(sed -nE "s/^$pkg==(.*)$/\1/p" "$REQ_IN")
-  out=$(pypi_eligible "$pkg" "$cur")
+  out=$(pypi_eligible "$pkg" "$cur") || { echo "error: PyPI lookup failed for $pkg" >&2; exit 1; }
   IFS=$'\t' read -r elig newest od <<<"$out"
   if [ "$elig" = "-" ]; then report "$pkg" "$cur" "-" "no version past cooldown"; continue; fi
   note=$(cooldown_note "$elig" "$newest")
