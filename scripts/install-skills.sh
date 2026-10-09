@@ -31,22 +31,27 @@ if [ "$CHECK" -eq 1 ]; then
   for dest in "${DESTS[@]}"; do
     for skill in "$KIT_DIR"/skills/*/; do
       name=$(basename "$skill")
-      vf="$dest/$name/.kit-version"
-      [ -f "$vf" ] || continue
+      d="$dest/$name"
+      [ -d "$d" ] || continue      # not installed here
       found=1
-      installed=$(head -n1 "$vf" | tr -d '[:space:]')
-      if [ "$installed" = "$kit_sha" ]; then
-        echo "up to date  $dest/$name ($installed)"
+      vf="$d/.kit-version"
+      if [ ! -f "$vf" ]; then
+        # Installed before version tracking existed: it also needs a --force reinstall.
+        echo "untracked   $d (installed before version tracking)"
+        stale=1
+      elif [ "$(head -n1 "$vf" | tr -d '[:space:]')" = "$kit_sha" ]; then
+        echo "up to date  $d ($kit_sha)"
       else
-        echo "stale       $dest/$name (installed ${installed:0:12}, kit ${kit_sha:0:12})"
+        installed=$(head -n1 "$vf" | tr -d '[:space:]')
+        echo "stale       $d (installed ${installed:0:12}, kit ${kit_sha:0:12})"
         stale=1
       fi
     done
   done
   if [ "$found" -eq 0 ]; then
-    echo "No installed skills carry a .kit-version. Run scripts/install-skills.sh to (re)install."
+    echo "No skills are installed. Run scripts/install-skills.sh to install."
   elif [ "$stale" -eq 1 ]; then
-    echo "Update the stale skills with: scripts/install-skills.sh --force"
+    echo "Update the stale or untracked skills with: scripts/install-skills.sh --force"
   fi
   exit 0
 fi
