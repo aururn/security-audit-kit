@@ -47,7 +47,7 @@ if git -C "$SRC" rev-parse --git-dir >/dev/null 2>&1; then
 elif [ -f "$SRC/.git" ]; then
   # A linked worktree (or submodule) has a .git file pointing at git data outside the mount, so
   # its history cannot be read here. Say so instead of looking like a plain non-repository.
-  record gitleaks skipped null "" "linked worktree or submodule: git data is outside the mount; scan the main checkout"
+  record gitleaks skipped null "" "linked worktree or submodule: git data is outside the mount; scan a mirror clone (git clone --mirror)"
 else
   record gitleaks skipped null "" "not a git repository"
 fi

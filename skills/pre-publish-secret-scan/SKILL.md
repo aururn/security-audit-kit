@@ -36,10 +36,14 @@ files on disk, including gitignored ones such as `.env.local`.
 
 - Do not publish until `gitleaks` is `ok`. A "SHALLOW clone" note means older history was not
   scanned: run `git fetch --unshallow` and scan again.
-- `skipped` with "linked worktree" means this directory was made with `git worktree add`, and its
-  git data is outside what the container can see. Scan the main checkout instead: it is the parent
-  of `git rev-parse --path-format=absolute --git-common-dir`. Refs are shared, so its `--all`
-  history scan covers this worktree's branch too.
+- `skipped` with "linked worktree or submodule" means this directory's git data is outside what the
+  container can see (`git worktree add`, or a submodule). Scan the history from a mirror clone,
+  which holds every ref and needs no outside directory. In that report, read only `gitleaks`;
+  the other tools have nothing to scan in a bare repository.
+  ```sh
+  git clone -q --mirror . "${TMPDIR:-/tmp}/publish-mirror.git"
+  bash "$KIT/scripts/run-scan.sh" "${TMPDIR:-/tmp}/publish-mirror.git" "${TMPDIR:-/tmp}/publish-mirror-reports"
+  ```
 - `gitleaks-worktree` skips build output and dependencies (`node_modules/`, `.next/`, `dist/`,
   `build/`). Only commits are published, and the history scan reads every committed file,
   including those directories. So commit everything you will publish first, then scan. If you
