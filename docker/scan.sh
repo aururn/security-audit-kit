@@ -101,20 +101,26 @@ if [ "$osv_rc" -le 1 ]; then
   osv_dev=$(jq "[.results[]? | select((.source.path // \"\") | ($npm_lock) | not)
     | .packages[]? | select((.dependency_groups // []) == [\"dev\"]) | .vulnerabilities[]?] | length" "$OUT/osv.json" 2>/dev/null)
   case "$osv_dev" in ''|*[!0-9]*) osv_dev=0 ;; esac
+  # One jq run per lockfile: the lockfile is the input and osv.json is read from its file
+  # (--slurpfile), so a large dev set never has to fit in a command-line argument.
   while IFS= read -r lock; do
     [ -f "$lock" ] || continue
-    devset=$(jq -c '
-      def v2: .packages | to_entries[] | select(.key != "")
-        | {k: ((.value.name // (.key | sub("^.*node_modules/"; ""))) + "@" + (.value.version // "")),
-           dev: (.value.dev == true)};
-      def v1: [.. | objects | select(has("dependencies")) | .dependencies | objects | to_entries[]] | .[]
-        | {k: (if (.value.version // "" | startswith("npm:")) then (.value.version | ltrimstr("npm:"))
-               else .key + "@" + (.value.version // "") end),
-           dev: (.value.dev == true)};
-      [if has("packages") then v2 else v1 end] | group_by(.k) | map(select(all(.dev)) | .[0].k)' "$lock" 2>/dev/null) || continue
-    n=$(jq --arg lock "$lock" --argjson devset "$devset" '[.results[]? | select(.source.path == $lock)
-      | .packages[]? | select((.package.name + "@" + .package.version) as $k | $devset | index($k))
-      | .vulnerabilities[]?] | length' "$OUT/osv.json" 2>/dev/null)
+    n=$(jq --arg lock "$lock" --slurpfile osv "$OUT/osv.json" '
+      def entry($name): select(.value | type == "object")
+        | {k: ($name + "@" + (.value.version // "" | tostring)), dev: (.value.dev == true)};
+      def v2: .packages | objects | to_entries[] | select(.key != "")
+        | entry(.value.name // (.key | sub("^.*node_modules/"; "")));
+      # v1: follow the "dependencies" of each record, never a name that happens to be "dependencies".
+      def v1records: (.dependencies // {}) | objects | to_entries[] | select(.value | type == "object")
+        | (., (.value | v1records));
+      def v1: v1records
+        | if (.value.version // "" | tostring | startswith("npm:"))
+          then {k: (.value.version | ltrimstr("npm:")), dev: (.value.dev == true)}
+          else entry(.key) end;
+      ([if has("packages") then v2 else v1 end] | group_by(.k)
+        | map(select(all(.dev)) | {key: .[0].k, value: true}) | from_entries) as $dev
+      | [$osv[0].results[]? | select(.source.path == $lock) | .packages[]?
+         | select($dev[.package.name + "@" + .package.version] == true) | .vulnerabilities[]?] | length' "$lock" 2>/dev/null)
     case "$n" in ''|*[!0-9]*) n=0 ;; esac
     osv_dev=$((osv_dev + n))
   done < <(jq -r "[.results[]?.source.path // empty | select($npm_lock)] | unique | .[]" "$OUT/osv.json" 2>/dev/null)
