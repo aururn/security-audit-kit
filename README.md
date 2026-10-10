@@ -61,6 +61,7 @@ GitHub Actions で PR ごとにスキャンする方法は、[スキャナ](docs
 - [エージェントが守る原則](AGENTS.md)：本番に攻撃しない、脆弱性の詳細を公開の場所に書かない、など
 - [保守](docs/maintenance.md)：ツールの版の上げ方、テスト、既知の制限
 - [判断の記録](docs/decisions/)
+- [検証の記録](docs/validation.md)：実際のリポジトリとエージェントで確かめたこと
 - [サードパーティの License](THIRD_PARTY_NOTICES.md)
 - [このキットの脆弱性の報告](SECURITY.md)
 
