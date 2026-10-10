@@ -50,7 +50,7 @@ AI は実在しないパッケージ名を提案することがあり、その�
 
 - [ ] ★ 常に成功を返す検証や、決め打ちの値が残っていない
   - 例: 常に `true` を返す `verifyToken`、`isAdmin = true`、決め打ちのユーザーやパスワード、`?debug=1` や `x-test-user` ヘッダで認証を飛ばす口
-  - 確認: `grep -rnoiE "(TODO|FIXME|HACK|XXX).{0,60}(auth|valid|secur|permission|rate|admin)" --exclude-dir=node_modules .`、`grep -rnoE "return true|isAdmin\s*=\s*true|password\s*[:=]\s*['\"]" --exclude-dir=node_modules .`（`-o` なので、パスワードの値は出ない）
+  - 確認: `grep -rliE "(TODO|FIXME|HACK|XXX).*(auth|valid|secur|permission|rate|admin)" --exclude-dir=node_modules .`（ファイル名だけ。該当箇所は開いて読む）、`grep -rnoE "return true|isAdmin\s*=\s*true|password\s*[:=]\s*['\"]" --exclude-dir=node_modules .`（`-o` なので、パスワードの値は出ない）
 - [ ] seed 用・デバッグ用のエンドポイント（`/api/seed`、`/api/reset`、`/api/debug`、`/api/test`）が本番で使えない
 - [ ] 本文・トークン・パスワード・プロンプトをそのままログに出していない（`console.log(req.body)` など）
 
