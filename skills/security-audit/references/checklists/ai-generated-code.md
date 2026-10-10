@@ -24,7 +24,8 @@ AI（コーディングエージェント、Lovable・Bolt・v0 などのアプ�
 - [ ] Supabase：ポリシーが `using (true)` や `with check (true)` で、全員に読み書きを許していない。所有者を `auth.uid()` で絞っている
 - [ ] ★ Supabase：公開されるスキーマの関数を、ブラウザの鍵で `rpc` から呼べない。呼べるなら、関数の中で `auth.uid()` と権限を確かめている
   - Postgres の関数は、既定で誰でも実行できる（`PUBLIC`）。公開されるスキーマの関数は `POST /rest/v1/rpc/<関数名>` で呼べる。`security definer` の関数は作った人の権限で動き、RLS が効かない。引数で渡した利用者 ID や組織 ID をそのまま信じる関数は、他人として操作できる
-  - 確認: マイグレーションで、関数ごとに `revoke all on function ... from public, anon, authenticated;`（サーバーだけが呼ぶ関数）があるか。無い関数のうち `security definer` のものは、中で `auth.uid()` を確かめているかを読む
+  - 確認: サーバーだけが呼ぶ関数は、マイグレーションで実行権を取り消しているか。関数ごとの `revoke all on function ... from public, anon, authenticated;` でも、スキーマ全体の `revoke ... on all functions in schema` と `alter default privileges` でもよい
+  - 確認（ブラウザから呼べる関数。承認したローカルの範囲だけで）: ログインなしで呼んだときと、利用者 A のセッションで利用者 B の ID を渡したときに、`rpc` が拒否されることを実際に呼んで確かめる。コードを読むだけでは足りない。`auth.uid() is not null` は、ログインしているかしか確かめておらず、渡した ID がその人のものかは確かめていない
 - [ ] ★ Supabase：`service_role` キー（新しい形式では `sb_secret_`）がクライアントのコードや公開される環境変数にない
   - 確認: `grep -rnoE "service_role|sb_secret_|SERVICE_ROLE" --include=*.{js,jsx,ts,tsx,vue,svelte} .`（`-o` なので接頭辞だけが出る）で、サーバー専用のファイル以外に出てこないか
 - [ ] Supabase：Storage のバケットが意図せず public になっていない
