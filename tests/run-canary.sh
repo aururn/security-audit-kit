@@ -133,10 +133,11 @@ if ! skipped secret; then
   fi
 fi
 
-# The lockfile has a vulnerable devDependency (minimist), a vulnerable runtime one (lodash) and a
-# vulnerable one that is both a devDependency and an optional runtime dependency (ansi-regex, which
-# npm marks devOptional). The note must count exactly the dev-only entries: minimist's, not
-# ansi-regex's, which can ship.
+# The lockfile has vulnerable packages of four kinds: a runtime dependency (lodash), a devDependency
+# (minimist), an optional dependency used only by dev tools (glob-parent: "dev" and "optional"), and
+# one that is both a devDependency and an optional runtime dependency (ansi-regex: "devOptional",
+# so it can ship). osv-scanner reports the last two alike, as ["dev", "optional"]. The note must
+# count exactly the dev-only entries: minimist's and glob-parent's, not ansi-regex's.
 if ! skipped package-lock; then
   osv_note=$(json '.["osv-scanner"].note // ""' 'd["osv-scanner"]?.note??""' < "$SUMMARY")
   # vulns_of <package> : number of OSV entries for that package in osv.json.
@@ -145,14 +146,16 @@ if ! skipped package-lock; then
       "(d.results||[]).flatMap(r=>(r.packages||[]).filter(p=>p.package.name===\"$1\").flatMap(p=>p.vulnerabilities||[])).length" \
       < "$REPORTS/osv.json"
   }
-  dev_expected=$(vulns_of minimist)
+  dev_direct=$(vulns_of minimist)
+  dev_opt_only=$(vulns_of glob-parent)
   dev_optional=$(vulns_of ansi-regex)
+  dev_expected=$((dev_direct + dev_opt_only))
   dev_re='\(([0-9]+) in dev-only dependencies\)'
-  if [ "$dev_expected" -ge 1 ] && [ "$dev_optional" -ge 1 ] \
+  if [ "$dev_direct" -ge 1 ] && [ "$dev_opt_only" -ge 1 ] && [ "$dev_optional" -ge 1 ] \
     && [[ $osv_note =~ $dev_re ]] && [ "${BASH_REMATCH[1]}" -eq "$dev_expected" ]; then
     echo "osv-scanner note counts only dev-only entries ($dev_expected; devOptional not counted): PASS"
   else
-    echo "osv-scanner dev-only count is wrong (expected $dev_expected, devOptional has $dev_optional; note: $osv_note): FAIL"
+    echo "osv-scanner dev-only count is wrong (expected $dev_direct + $dev_opt_only, devOptional has $dev_optional; note: $osv_note): FAIL"
     failed=1
   fi
 fi
