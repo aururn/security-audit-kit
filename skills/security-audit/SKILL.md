@@ -66,6 +66,15 @@ file with the report, not in the target repository.
 Useful greps: `export async function (GET|POST|PUT|DELETE)`, `'use server'`, `process.env`,
 `dangerouslySetInnerHTML`, `postMessage(`, `fetch(`, `NextResponse.json(.*error`.
 
+Write the entry points down as a table, one row per entry point, and keep it in the report:
+
+| Location | Method and path | Auth required | Input validated | Paid upstream | Checked |
+| --- | --- | --- | --- | --- | --- |
+| `app/api/chat/route.ts:12` | `POST /api/chat` | no | length only | LLM | reproduced (finding 1) |
+
+Every row ends as `reproduced`, `checked, fine`, or `not checked (reason)`. The report's coverage
+is this table, not a summary of it, so a reader can see what was not looked at.
+
 ## 2. Automated scans
 
 Run the kit's scanner container: secrets in full history (gitleaks), dependencies incl.
@@ -131,8 +140,31 @@ with attacks. Instead:
 4. For error paths, check both the HTTP response (internal addresses, stack traces) and the
    server log (API keys, Authorization headers).
 
-For browser-side behaviour (XSS through markdown, link and image handling), render the real
-component or library with hostile input and inspect the output HTML.
+### In a browser
+
+XSS, CSRF with cookies and framing only show in a real browser. Use Playwright (`npx playwright`)
+or a browser-automation tool you have, against the local app only.
+
+- **XSS**: render the real component with hostile input (markdown, links, images, HTML). Use a
+  payload that leaves a mark instead of `alert()`, such as
+  `<img src=x onerror="document.title='XSS-1'">`, so no dialog blocks the browser. Then read
+  `document.title` and the rendered HTML.
+- **Clickjacking, CSRF, cross-site API calls**: start `attacker-page.mjs` (in this skill
+  directory). It serves its pages from the other loopback name (`localhost` and `127.0.0.1`), so
+  the browser treats them as another site and applies SameSite and CORS as for a real attacker.
+  ```sh
+  node attacker-page.mjs http://localhost:3000 4330
+  ```
+  - `/frame?path=/`: the app in an iframe. Take a screenshot: an unprotected app renders inside
+    the frame; a protected one (`frame-ancestors` or `X-Frame-Options`) shows the browser's
+    refused-frame page. The page cannot tell the two apart itself, because the frame is cross-site
+  - `/form?path=/api/x&body={"message":"hi"}`: a cross-site `text/plain` POST whose body parses
+    as JSON. Read the app's log or `upstream.log`: was it processed with the user's cookies?
+  - `/fetch?path=/api/x&method=POST&body=...`: a credentialed cross-site fetch
+
+  Log in to the app first in the same browser profile, so its cookies are sent as they would be
+  for a real user. Chromium may block frames between loopback addresses (Local Network Access);
+  for the test only, start it with `--disable-features=LocalNetworkAccessChecks`.
 
 ## 5. Production, read-only
 
@@ -158,4 +190,6 @@ For each finding: severity, location (`file:line`), what an attacker does, evide
 3. Cannot be checked from code (dashboards: spend limits, rate limits, WAF/bot rules,
    LLM provider caps, deploy source) — ask the user
 
-Also list what was checked and found fine, so the reader knows the coverage.
+Add the coverage: the entry-point table from step 1, and which automated scans ran (with their
+notes) and which did not. That is how the reader knows what was checked and found fine, and what
+was not looked at.
