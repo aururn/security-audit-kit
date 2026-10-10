@@ -89,27 +89,28 @@ osv_rc=$?
 if [ "$osv_rc" -le 1 ]; then
   # Triage starts from what ships, so say how many entries are in dev-only dependencies. The count
   # itself stays the total: a dev tool can still run on a developer's machine or in CI.
-  # - package-lock.json and npm-shrinkwrap.json: read npm's own flags. osv-scanner reports both a
+  # - osv-scanner's groups exactly ["dev"]: dev-only, for every lockfile that has groups. For npm
+  #   this comes from the lockfile's "dev" flag, and a package that also ships (for example under
+  #   an alias) is reported without groups. pnpm-lock.yaml has no groups at all (see below).
+  # - ["dev", "optional"] from package-lock.json or npm-shrinkwrap.json: osv-scanner reports a
   #   dev-only optional package (dev + optional) and a devOptional one (in the dev tree and in the
-  #   production optional tree, so it can ship) as ["dev", "optional"]; only the lockfile tells them
-  #   apart. A name@version is dev-only when every lockfile entry for it has "dev": true. The name
-  #   is the real package name, as osv-scanner reports it, also for an alias (v2/v3: the entry's
-  #   "name"; v1: a "npm:<name>@<version>" version). Lockfile v2/v3 lists entries under "packages";
-  #   v1 only nests them under "dependencies".
-  # - other lockfiles: osv-scanner's groups, exactly ["dev"]. pnpm-lock.yaml has none (see below).
-  npm_lock='endswith("package-lock.json") or endswith("npm-shrinkwrap.json")'
-  osv_dev=$(jq "[.results[]? | select((.source.path // \"\") | ($npm_lock) | not)
-    | .packages[]? | select((.dependency_groups // []) == [\"dev\"]) | .vulnerabilities[]?] | length" "$OUT/osv.json" 2>/dev/null)
+  #   production optional tree, so it can ship) alike, so read npm's own flags: a name@version is
+  #   dev-only when every lockfile entry for it has "dev": true. Names follow osv-scanner: an
+  #   alias's real name, and the last path part (two for a scope) outside node_modules. A dev-only
+  #   optional package installed from git is not counted (osv-scanner names it by its URL).
+  osv_dev=$(jq '[.results[]?.packages[]? | select((.dependency_groups // []) == ["dev"]) | .vulnerabilities[]?] | length' "$OUT/osv.json" 2>/dev/null)
   case "$osv_dev" in ''|*[!0-9]*) osv_dev=0 ;; esac
   # One jq run per lockfile: the lockfile is the input and osv.json is read from its file
-  # (--slurpfile), so a large dev set never has to fit in a command-line argument.
+  # (--slurpfile), so a large lockfile never has to fit in a command-line argument.
+  npm_lock='endswith("package-lock.json") or endswith("npm-shrinkwrap.json")'
   while IFS= read -r lock; do
     [ -f "$lock" ] || continue
     n=$(jq --arg lock "$lock" --slurpfile osv "$OUT/osv.json" '
+      def pkgname: if test("node_modules/") then sub("^.*node_modules/"; "")
+        else split("/") | if length > 1 and (.[-2] | startswith("@")) then .[-2:] | join("/") else .[-1] end end;
       def entry($name): select(.value | type == "object")
         | {k: ($name + "@" + (.value.version // "" | tostring)), dev: (.value.dev == true)};
-      def v2: .packages | objects | to_entries[] | select(.key != "")
-        | entry(.value.name // (.key | sub("^.*node_modules/"; "")));
+      def v2: .packages | objects | to_entries[] | select(.key != "") | entry(.value.name // (.key | pkgname));
       # v1: follow the "dependencies" of each record, never a name that happens to be "dependencies".
       def v1records: (.dependencies // {}) | objects | to_entries[] | select(.value | type == "object")
         | (., (.value | v1records));
@@ -120,6 +121,7 @@ if [ "$osv_rc" -le 1 ]; then
       ([if has("packages") then v2 else v1 end] | group_by(.k)
         | map(select(all(.dev)) | {key: .[0].k, value: true}) | from_entries) as $dev
       | [$osv[0].results[]? | select(.source.path == $lock) | .packages[]?
+         | select((.dependency_groups // []) == ["dev", "optional"])
          | select($dev[.package.name + "@" + .package.version] == true) | .vulnerabilities[]?] | length' "$lock" 2>/dev/null)
     case "$n" in ''|*[!0-9]*) n=0 ;; esac
     osv_dev=$((osv_dev + n))
