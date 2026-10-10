@@ -39,10 +39,12 @@ fi
 for dest in "${DESTS[@]}"; do
   for s in "${SKILLS[@]}"; do
     d="$dest/$s"
-    if [ -f "$d/SKILL.md" ] && cmp -s "$KIT_DIR/skills/$s/SKILL.md" "$d/SKILL.md"; then
-      pass "installed $d"
+    # The whole skill directory, references/ and helper scripts included, must be an exact copy;
+    # .kit-version is the only file the installer adds.
+    if [ -f "$d/SKILL.md" ] && diff -r --exclude=.kit-version "$KIT_DIR/skills/$s" "$d" >/dev/null; then
+      pass "installed $d (exact copy, references included)"
     else
-      fail "not installed or differs: $d"
+      fail "not installed or differs from skills/$s: $d"
     fi
     vf="$d/.kit-version"
     if [ -f "$vf" ] && [ "$(sed -n 1p "$vf")" = "$kit_sha" ] && [ -f "$(sed -n 3p "$vf")/scripts/run-scan.sh" ]; then
