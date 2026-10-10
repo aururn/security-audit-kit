@@ -37,9 +37,10 @@
 
 ### skill の選ばれ方
 
-[`evals/skill-triggers.sh`](../evals/skill-triggers.sh)。Claude Code 2.1.289 で、plugin を `--plugin-dir` で読み込んだ。
+[`evals/skill-triggers.sh`](../evals/skill-triggers.sh)。Claude Code 2.1.289 で、plugin を `--plugin-dir` で読み込んだ。使える道具は Skill だけで、MCP は読み込まない。数えるのはこの plugin の skill（`security-audit-kit:<skill>`）だけで、成功で終わらなかった回は不合格にする。
 
-- 9 件中 9 件で、期待した skill が選ばれた（日本語 7 件、英語 1 件、どの skill も選ばれるべきでない頼み方 1 件）
+- 9 件中 9 件で、期待した skill が選ばれた（日本語 7 件、英語 1 件、どの skill も選ばれるべきでない頼み方 1 件）。同じ 9 件を別々に 3 回実行し、どれも 9/9
+- 判定の仕組みは、偽の `claude` コマンドで確かめた：無関係の skill は対象外の判定に影響しない。単独で入れた skill の写しは数えない。実行が失敗した回は不合格になる
 
 ### URL を貼る入口
 

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Which skill does Claude Code pick for a request? Loads this kit as a plugin for the session only
-# (--plugin-dir; nothing is installed) and allows only the Skill tool, so each run stops right
-# after the choice. Uses the caller's Claude Code login and costs a little usage per case, so it is
-# not run in CI. Run it after changing a skill's description.
+# (--plugin-dir; nothing is installed) with the Skill tool as the only tool and no MCP servers, so
+# each run stops right after the choice. Only this plugin's skills ("security-audit-kit:<skill>")
+# count; a standalone copy in ~/.claude/skills is not the version under test. A run that does not
+# finish successfully counts as a failure. Uses the caller's Claude Code login and costs a little
+# usage per case, so it is not run in CI. Run it after changing a skill's description.
 # Usage: evals/skill-triggers.sh <target-repo-dir>
 set -uo pipefail
 
@@ -34,21 +36,31 @@ for c in "${cases[@]}"; do
   i=$((i + 1))
   want=${c%%|*}
   prompt=${c#*|}
+  # --tools limits the built-in tools to Skill and --strict-mcp-config loads no MCP server, so a
+  # run can only pick a skill; --allowedTools lets it do so without a permission prompt.
+  rc=0
   (cd "$TARGET" && timeout 300 claude -p "$prompt" --plugin-dir "$KIT_DIR" --output-format stream-json --verbose \
-    --allowedTools Skill \
-    --disallowedTools "Bash,PowerShell,Read,Glob,Grep,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent" \
-    >"$OUT/case$i.jsonl" 2>"$OUT/case$i.err")
-  # The first Skill tool call, e.g. "security-audit-kit:security-audit"; "none" if there was none.
+    --tools Skill --strict-mcp-config --allowedTools Skill \
+    >"$OUT/case$i.jsonl" 2>"$OUT/case$i.err") || rc=$?
+  # The first call to one of this plugin's skills, by full name ("security-audit-kit:<skill>");
+  # skills from elsewhere (other plugins, standalone copies) do not count. "error" when the run did
+  # not finish successfully, so a failed run never passes as "none".
   got=$(node -e '
-    const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n").filter(Boolean)
+    const [file, rc] = process.argv.slice(1)
+    let lines = []
+    try { lines = require("fs").readFileSync(file, "utf8").split("\n").filter(Boolean) } catch {}
+    let pick = null, ok = false
     for (const l of lines) {
       let j; try { j = JSON.parse(l) } catch { continue }
+      if (j.type === "result") ok = j.subtype === "success" && j.is_error !== true
       for (const c of j.message?.content ?? []) {
-        if (c.type === "tool_use" && c.name === "Skill") { console.log(c.input.skill ?? "?"); process.exit(0) }
+        const s = c.type === "tool_use" && c.name === "Skill" ? String(c.input?.skill ?? "") : ""
+        if (!pick && s.startsWith("security-audit-kit:")) pick = s
       }
     }
-    console.log("none")' "$OUT/case$i.jsonl")
-  if [ "${got##*:}" = "$want" ]; then
+    console.log(rc !== "0" || !ok ? "error" : pick ?? "none")' "$OUT/case$i.jsonl" "$rc")
+  expected=$([ "$want" = none ] && echo none || echo "security-audit-kit:$want")
+  if [ "$got" = "$expected" ]; then
     result=PASS
     pass=$((pass + 1))
   else
