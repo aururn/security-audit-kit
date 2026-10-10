@@ -31,9 +31,10 @@ AI（コーディングエージェント、Lovable・Bolt・v0 などのアプ�
 - [ ] ★ Supabase：サーバーが DB に直接つなぐ場合（Drizzle、Prisma、`pg` など）、そのロールで RLS が効く
   - Supabase が最初から用意する `postgres` ロールは、superuser ではないが `BYPASSRLS` を持ち、多くのテーブルの所有者でもある。その接続文字列で動かすと、ポリシーは 1 つも効かない。`FORCE ROW LEVEL SECURITY` は所有者には効くが、`BYPASSRLS` を持つロールには効かない
   - テーブルの所有者も、`FORCE ROW LEVEL SECURITY` がなければポリシーをすり抜ける。マイグレーションをアプリと同じ接続で流すと、独自に作ったロールでも所有者になる
-  - 確認: アプリが使う接続文字列のユーザー名を確かめる（値は出さない。`DATABASE_URL` のユーザー部分が `postgres` か `postgres.<project ref>` なら危ない）。DB に接続できれば、そのロールで次の 2 つを実行する。1 つ目が `false`・`false` で、2 つ目が 0 行なら、このロールで直接読むテーブルにはポリシーが効く
+  - 確認: アプリが使う接続文字列のユーザー名を確かめる（値は出さない。`DATABASE_URL` のユーザー部分が `postgres` か `postgres.<project ref>` なら危ない）。DB に接続できれば、そのロールで次の 3 つを実行する。1 つ目が `false`・`false` で、2 つ目と 3 つ目が 0 行なら、このロールで直接読み書きするテーブルにはポリシーが効く
     - `select rolsuper, rolbypassrls from pg_roles where rolname = current_user;`
     - `select c.oid::regclass from pg_class c where c.relkind in ('r', 'p') and c.relrowsecurity and not c.relforcerowsecurity and pg_has_role(current_user, c.relowner, 'USAGE');`（そのロールが所有者で、ポリシーをすり抜けるテーブル）
+    - `select c.oid::regclass from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind in ('r', 'p') and not c.relrowsecurity and n.nspname not in ('pg_catalog', 'information_schema') and has_table_privilege(current_user, c.oid, 'select, insert, update, delete');`（RLS が無効で、そのロールが読み書きできるテーブル。`public` 以外のスキーマも含む）
   - ビュー（`security_invoker` のないもの。`postgres` が作ったビューは既定でこれ）と `security definer` の関数は、所有者の権限で動く。所有者が `postgres` なら、そこを通る読み書きはポリシーをすり抜ける。アプリがこれらを通すなら、アプリと同じロールと経路で他のテナントの行を読もうとして、返らないことを確かめる
   - 本番の接続文字列はコードからは分からない。「RLS で分離している」と README に書いてあっても、未確認として利用者に確認を依頼する
 - [ ] Supabase：Storage のバケットが意図せず public になっていない
