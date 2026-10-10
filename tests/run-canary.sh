@@ -148,9 +148,21 @@ if ! skipped server; then
   fi
 fi
 
+# The workflow fixture has a script semgrep can only partly parse as Bash. That is parser noise,
+# not unscanned code, so it must not show up as "scan errors" in the note.
+if ! skipped workflow; then
+  sg_note=$(json '.semgrep.note // ""' 'd.semgrep?.note??""' < "$SUMMARY")
+  case "$sg_note" in
+    *"scan errors"*)
+      echo "semgrep note reports scan errors for the canary ($sg_note): FAIL"
+      failed=1 ;;
+    *) echo "semgrep note has no scan errors: PASS" ;;
+  esac
+fi
+
 echo "Reports: $REPORTS"
 if [ "$failed" -ne 0 ]; then
-  echo "canary: FAIL - at least one scanner did not flag the canary repository" >&2
+  echo "canary: FAIL - see the FAIL lines above" >&2
   exit 1
 fi
 echo "canary: PASS - every scanner flagged the canary repository"

@@ -13,3 +13,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Echo title
         run: echo "${{ github.event.pull_request.title }}"
+      # Not a finding: a script with non-ASCII text ("実DB": a kanji right before ASCII). semgrep cannot parse such
+      # snippets as Bash and reports a warn-level PartialParsing; scan.sh must not count it as a
+      # scan error (the workflow is still covered by zizmor and actionlint).
+      - name: スクリプト
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/test.log
+          if grep -q "skipped" /tmp/test.log; then
+            echo "::error::実DBのテストがスキップされています。"
+            exit 1
+          fi
