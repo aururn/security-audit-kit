@@ -17,7 +17,15 @@ if (!report || !/^\d+$/.test(index ?? '') || !dir) {
   console.error('usage: node check-empty-value-hit.mjs <gitleaks report.json> <index> <scanned dir>')
   process.exit(2)
 }
-const hit = JSON.parse(readFileSync(report, 'utf8'))[Number(index)]
+let hit
+try {
+  hit = JSON.parse(readFileSync(report, 'utf8'))[Number(index)]
+} catch {
+  // JSON.parse quotes the start of the input in its message; given a .env by mistake, that would
+  // be the start of a value.
+  console.error('could not read the report as JSON')
+  process.exit(2)
+}
 if (!hit) {
   console.error(`no hit at index ${index}`)
   process.exit(2)

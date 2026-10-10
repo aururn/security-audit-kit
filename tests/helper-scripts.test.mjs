@@ -227,6 +227,12 @@ describe('check-empty-value-hit.mjs', () => {
     assert.deepEqual(await check(4), { code: 0, out: 'real\n' })
   })
 
+  test('a file that is not a report is refused without quoting it', async () => {
+    const { code, out } = await runToExit(CHECK_HIT, [join(dir, '.env.real'), '0', dir])
+    assert.equal(code, 2)
+    assert.ok(!out.includes('API_KEY'), 'the file content reached the output')
+  })
+
   test('rejects an index that is not a number', async () => {
     const { code } = await runToExit(CHECK_HIT, [report, '0;id', dir])
     assert.equal(code, 2)
