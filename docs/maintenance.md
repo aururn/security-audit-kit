@@ -30,6 +30,8 @@ scripts/install-skills.sh --force    # 古いものを入れ直す
 
 キットを `git pull` した後に `--check` で確かめ、古ければ `--force` で入れ直します。
 
+この動きは、CI で `tests/test-install-skills.sh` が一時的な HOME に入れて確かめています（実際の `~/.claude`・`~/.codex` には触れません）。
+
 ## テスト
 
 ```sh
