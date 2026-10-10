@@ -103,15 +103,20 @@ if jq -e '.results | type == "array"' "$OUT/semgrep.json" >/dev/null 2>&1; then
   # (semgrep's shell/Dockerfile grammars are incomplete and always emit these); a full syntax
   # failure, timeout or any higher-level error is still counted, whatever the file type.
   # Drop only the verified parser noise: a warn-level PartialParsing on a shell script or
-  # Dockerfile (semgrep's grammars for those are incomplete). Keep everything else, including a
-  # PartialParsing on a .js/.ts file (part of application code went unanalyzed) and any Syntax
-  # error, timeout or higher-level error on any file. .type is an array ["PartialParsing", …] for
-  # partial parses but a plain string ("Syntax error", …) otherwise, so normalise it first.
+  # Dockerfile (semgrep's grammars for those are incomplete), or on a shell snippet inside a
+  # workflow YAML (a GitHub Actions rule parses `run:` as Bash, and the Bash grammar trips on some
+  # non-ASCII text such as "実DB"; zizmor and actionlint still cover the workflow). Keep everything
+  # else, including a PartialParsing on a .js/.ts file (part of application code went unanalyzed)
+  # and any Syntax error, timeout or higher-level error on any file. .type is an array
+  # ["PartialParsing", …] for partial parses but a plain string ("Syntax error", …) otherwise, so
+  # normalise it first.
   errs=$(jq '[ .errors[]?
     | (if (.type | type) == "array" then .type[0] else .type end) as $t
     | ((.path // "") | ascii_downcase) as $p
     | select( ( ($t == "PartialParsing") and (.level == "warn")
-                and ( ($p|endswith(".sh")) or ($p|endswith(".bash")) or ($p|endswith("dockerfile")) )
+                and ( ($p|endswith(".sh")) or ($p|endswith(".bash")) or ($p|endswith("dockerfile"))
+                      or ( (($p|endswith(".yml")) or ($p|endswith(".yaml")))
+                           and ((.message // "") | contains("as Bash")) ) )
               ) | not )
   ] | length' "$OUT/semgrep.json" 2>/dev/null); case "$errs" in ''|*[!0-9]*) errs=0 ;; esac
   [ "$errs" -gt 0 ] && sg_note="$sg_note ($errs scan errors: some files not analyzed)"
