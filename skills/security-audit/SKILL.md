@@ -96,9 +96,23 @@ Docker Desktop, because the scan needs it. If they decline, continue with steps 
 scanners downloaded on the spot: they are not pinned or verified.
 
 Triage every hit. Typical false positives: minified vendor code, build output (`.next/`,
-`dist/`), test fixtures with fake keys. Confirm build output is gitignored and never committed
-before dismissing it. `pnpm audit --prod` counts dependencies declared in `dependencies`
-even if they are dev tools (e.g. `eslint-config-next`); report them as such, not as runtime risk.
+`dist/`), test fixtures with fake keys, and gitleaks' `generic-api-key` on an empty `NAME=` line
+in a dotenv file (often `.env.example`) that read the next setting as the value. That hit also
+covers the next setting, and gitleaks does not report it separately, so never dismiss it on your
+own. When `StartLine` and `EndLine` differ, run this check with the report and the hit's position
+in it. It reads the commit and the file from the report (never type them into a command: a file
+name in the target can contain shell syntax) and prints one of two fixed phrases, never the lines.
+Without Node.js, treat the result as `ask the user`. On `real`, treat the hit as real. On
+`ask the user`, give them the file, `EndLine` and commit, and dismiss it only after they confirm
+that setting holds no credential.
+
+```sh
+node "$KIT/scripts/check-empty-value-hit.mjs" <report.json> <index of the hit, from 0> <scanned dir>
+```
+
+Confirm build output is gitignored and never committed before dismissing it. `pnpm audit --prod`
+counts dependencies declared in `dependencies` even if they are dev tools (e.g.
+`eslint-config-next`); report them as such, not as runtime risk.
 
 ## 3. Manual review by category
 

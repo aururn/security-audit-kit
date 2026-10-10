@@ -68,6 +68,11 @@ Never print secret values in the report, chat, issues or logs. Summarise rule, f
 | Build output (`.next/`, `dist/`, caches) | local random keys, never committed | `git check-ignore -v <path>`, and `git log --all --oneline -- <dir>` prints nothing |
 | Test fixtures (`ci-test-key`, `example`) | fake | the value is used only by tests and fixtures |
 | `.env*` other than `.env.example` | real | `git ls-files` filtered for `.env` |
+| `generic-api-key` whose `StartLine` and `EndLine` differ, in a dotenv file (`.env`, `.env.*`, often `.env.example`) | often a false positive: `StartLine` is an empty `NAME=` and the rule read the next setting as its value. But the hit then also covers that next setting, and gitleaks does not report it separately, so a credential there has no other hit | run the check below with the report and the hit's position in it. It reads the commit and the file from the report (never type them into a command: a file name can contain shell syntax) and prints one of two fixed phrases, never the lines. Without Node.js, treat the result as `ask the user`. `real`: treat the hit as real. `ask the user`: give the user `<File>` and line `<EndLine>` (and `<Commit>`), and dismiss the hit only after they confirm that setting holds no credential. Never print the line yourself |
+
+```sh
+node "$KIT/scripts/check-empty-value-hit.mjs" <report.json> <index of the hit, from 0> <scanned dir>
+```
 
 Also check what gitleaks does not know about:
 

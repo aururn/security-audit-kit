@@ -1,11 +1,12 @@
-// Tests for the helpers the security-audit skill starts during a local reproduction:
-// fake-upstream.mjs must never write the Authorization value to its log, and attacker-page.mjs
-// must refuse any target other than a local app and any path that would leave the target origin.
-// They run the scripts as child processes, as the skill does. No browser and no network beyond
-// loopback. Run: node --test tests/
-import { spawn } from 'node:child_process'
+// Tests for the helpers the skills run: fake-upstream.mjs must never write the Authorization value
+// to its log, attacker-page.mjs must refuse any target other than a local app and any path that
+// would leave the target origin, and check-empty-value-hit.mjs must never let a file name from the
+// report reach a shell. They run the scripts as child processes, as the skills do. No browser and
+// no network beyond loopback. Run: node --test tests/
+import { execFileSync, spawn } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { connect } from 'node:net'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, test } from 'node:test'
@@ -15,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 const SKILL = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'security-audit')
 const FAKE_UPSTREAM = join(SKILL, 'fake-upstream.mjs')
 const ATTACKER_PAGE = join(SKILL, 'attacker-page.mjs')
+const CHECK_HIT = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'check-empty-value-hit.mjs')
 
 // A port per server, away from common dev ports. Collisions only make a test fail, never pass.
 let nextPort = 41000 + Math.floor(Math.random() * 2000) * 10
@@ -175,5 +177,64 @@ describe('attacker-page.mjs: pages', () => {
     assert.match(raw, /bad request/)
     const { status } = await get('/frame?path=/')
     assert.equal(status, 200)
+  })
+})
+
+describe('check-empty-value-hit.mjs', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'check-hit-'))
+  after(() => rmSync(dir, { recursive: true, force: true }))
+  const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim()
+  // A file name that runs commands if it is ever pasted into a shell command line.
+  const hostile = 'a;touch pwned1;b$(touch pwned2)`touch pwned3`.env'
+  writeFileSync(join(dir, '.env.example'), 'API_KEY=\nDATABASE_URL=postgres://localhost/app\n')
+  writeFileSync(join(dir, hostile), 'API_KEY=\r\nSESSION_SECRET=placeholder\r\n')
+  // Generated now, so that no key-shaped string is committed to the kit.
+  writeFileSync(join(dir, '.env.real'), `API_KEY=${randomBytes(10).toString('hex')}\nDATABASE_URL=postgres://localhost/app\n`)
+  git('init', '-q')
+  git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', 'add', '-A')
+  git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'fixtures')
+  const commit = git('rev-parse', 'HEAD')
+  const hit = (File, extra = {}) => ({ RuleID: 'generic-api-key', File, Commit: commit, StartLine: 1, EndLine: 2, ...extra })
+  const report = join(dir, 'report.json')
+  writeFileSync(report, JSON.stringify([
+    hit('.env.example'),
+    hit(hostile),
+    hit('.env.real'),
+    hit('/src/.env.example', { Commit: '' }),
+    hit('.env.example', { RuleID: 'github-pat' }),
+  ]))
+  const check = (i) => runToExit(CHECK_HIT, [report, String(i), dir])
+
+  test('an empty NAME= followed by another setting needs the user', async () => {
+    assert.deepEqual(await check(0), { code: 0, out: 'ask the user\n' })
+  })
+
+  test('a file name with shell syntax is never run', async () => {
+    assert.deepEqual(await check(1), { code: 0, out: 'ask the user\n' })
+    for (const f of ['pwned1', 'pwned2', 'pwned3']) assert.ok(!existsSync(join(dir, f)), `${f} was created`)
+  })
+
+  test('a value on StartLine is real, and the lines are never printed', async () => {
+    const { code, out } = await check(2)
+    assert.deepEqual({ code, out }, { code: 0, out: 'real\n' })
+  })
+
+  test('a working-tree hit is read from the scanned directory', async () => {
+    assert.deepEqual(await check(3), { code: 0, out: 'ask the user\n' })
+  })
+
+  test('another rule is real', async () => {
+    assert.deepEqual(await check(4), { code: 0, out: 'real\n' })
+  })
+
+  test('a file that is not a report is refused without quoting it', async () => {
+    const { code, out } = await runToExit(CHECK_HIT, [join(dir, '.env.real'), '0', dir])
+    assert.equal(code, 2)
+    assert.ok(!out.includes('API_KEY'), 'the file content reached the output')
+  })
+
+  test('rejects an index that is not a number', async () => {
+    const { code } = await runToExit(CHECK_HIT, [report, '0;id', dir])
+    assert.equal(code, 2)
   })
 })
