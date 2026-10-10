@@ -133,14 +133,26 @@ if ! skipped secret; then
   fi
 fi
 
-# The lockfile has a vulnerable devDependency (minimist) next to a vulnerable runtime one (lodash).
-# The note must count the dev-only entries, so triage can start from what ships.
+# The lockfile has a vulnerable devDependency (minimist), a vulnerable runtime one (lodash) and a
+# vulnerable one that is both a devDependency and an optional runtime dependency (ansi-regex, which
+# npm marks devOptional). The note must count exactly the dev-only entries: minimist's, not
+# ansi-regex's, which can ship.
 if ! skipped package-lock; then
   osv_note=$(json '.["osv-scanner"].note // ""' 'd["osv-scanner"]?.note??""' < "$SUMMARY")
-  if [[ $osv_note =~ \(([0-9]+)\ in\ dev-only\ dependencies\) ]] && [ "${BASH_REMATCH[1]}" -ge 1 ]; then
-    echo "osv-scanner note counts dev-only entries ($osv_note): PASS"
+  # vulns_of <package> : number of OSV entries for that package in osv.json.
+  vulns_of() {
+    json "[.results[]?.packages[]? | select(.package.name == \"$1\") | .vulnerabilities[]?] | length" \
+      "(d.results||[]).flatMap(r=>(r.packages||[]).filter(p=>p.package.name===\"$1\").flatMap(p=>p.vulnerabilities||[])).length" \
+      < "$REPORTS/osv.json"
+  }
+  dev_expected=$(vulns_of minimist)
+  dev_optional=$(vulns_of ansi-regex)
+  dev_re='\(([0-9]+) in dev-only dependencies\)'
+  if [ "$dev_expected" -ge 1 ] && [ "$dev_optional" -ge 1 ] \
+    && [[ $osv_note =~ $dev_re ]] && [ "${BASH_REMATCH[1]}" -eq "$dev_expected" ]; then
+    echo "osv-scanner note counts only dev-only entries ($dev_expected; devOptional not counted): PASS"
   else
-    echo "osv-scanner note does not count dev-only entries ($osv_note): FAIL"
+    echo "osv-scanner dev-only count is wrong (expected $dev_expected, devOptional has $dev_optional; note: $osv_note): FAIL"
     failed=1
   fi
 fi
