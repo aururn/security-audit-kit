@@ -34,7 +34,7 @@ AI（コーディングエージェント、Lovable・Bolt・v0 などのアプ�
   - 確認: アプリが使う接続文字列のユーザー名を確かめる（値は出さない。`DATABASE_URL` のユーザー部分が `postgres` か `postgres.<project ref>` なら危ない）。DB に接続できれば、そのロールで次の 3 つを実行する。1 つ目が `false`・`false` で、2 つ目と 3 つ目が 0 行なら、このロールで直接読み書きするテーブルにはポリシーが効く
     - `select rolsuper, rolbypassrls from pg_roles where rolname = current_user;`
     - `select c.oid::regclass from pg_class c where c.relkind in ('r', 'p') and c.relrowsecurity and not c.relforcerowsecurity and pg_has_role(current_user, c.relowner, 'USAGE');`（そのロールが所有者で、ポリシーをすり抜けるテーブル）
-    - `select c.oid::regclass from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind in ('r', 'p') and not c.relrowsecurity and n.nspname not in ('pg_catalog', 'information_schema') and has_table_privilege(current_user, c.oid, 'select, insert, update, delete');`（RLS が無効で、そのロールが読み書きできるテーブル。`public` 以外のスキーマも含む）
+    - `select c.oid::regclass from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind in ('r', 'p') and not c.relrowsecurity and n.nspname not in ('pg_catalog', 'information_schema') and (has_any_column_privilege(current_user, c.oid, 'select, insert, update') or has_table_privilege(current_user, c.oid, 'delete'));`（RLS が無効で、そのロールが読み書きできるテーブル。`public` 以外のスキーマと、列だけに付けた権限も含む）
   - ビュー（`security_invoker` のないもの。`postgres` が作ったビューは既定でこれ）と `security definer` の関数は、所有者の権限で動く。所有者が `postgres` なら、そこを通る読み書きはポリシーをすり抜ける。アプリがこれらを通すなら、アプリと同じロールと経路で他のテナントの行を読もうとして、返らないことを確かめる
   - 本番の接続文字列はコードからは分からない。「RLS で分離している」と README に書いてあっても、未確認として利用者に確認を依頼する
 - [ ] Supabase：Storage のバケットが意図せず public になっていない
