@@ -140,6 +140,31 @@ with attacks. Instead:
 4. For error paths, check both the HTTP response (internal addresses, stack traces) and the
    server log (API keys, Authorization headers).
 
+### When the app needs a database or other services
+
+Run the app against throwaway copies on this machine, never against a shared or production
+database, and never with real data or real keys.
+
+1. Follow the project's own setup first (`docker-compose.yml`, `docs/SETUP*`, the service
+   containers in its CI workflow). They name the versions, roles and migrations the app expects.
+2. Otherwise start a throwaway container bound to loopback only, with the major version the
+   project uses, and apply the project's migrations with its own command:
+   ```sh
+   docker run --rm -d --name audit-db -e POSTGRES_PASSWORD="$(openssl rand -hex 16)" \
+     -p 127.0.0.1:55432:5432 postgres:17
+   ```
+3. Connect the app with the same kind of role it uses in production. If the app relies on RLS or
+   grants, a superuser or `BYPASSRLS` role makes authorization bugs disappear: create a role
+   like the project's docs describe and use that.
+4. Give every other secret a fake value, and point every upstream base URL at `fake-upstream.mjs`.
+   If an SDK cannot be pointed elsewhere, do not use a real key: mark those entry points
+   `not checked (needs a real upstream)` in the table.
+5. Remove the containers afterwards (`docker rm -f audit-db`).
+
+If the app still does not start within about 30 minutes, stop setting it up. Keep the static
+findings as candidates, and mark the dynamic checks `not checked (app could not run locally:
+<reason>)` in the entry-point table.
+
 ### In a browser
 
 XSS, CSRF with cookies and framing only show in a real browser. Use a browser-automation tool you
