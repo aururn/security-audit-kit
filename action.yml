@@ -42,8 +42,9 @@ runs:
         SCAN_PATH: ${{ inputs.path }}
         SCAN_WORKTREE_INPUT: ${{ inputs.worktree }}
       run: |
-        reports="$RUNNER_TEMP/security-audit-reports"
-        rm -rf "$reports"
+        # A fresh directory per invocation, so a second scan in the same job cannot overwrite the
+        # reports an earlier step's output points at.
+        reports=$(mktemp -d "$RUNNER_TEMP/security-audit-reports.XXXXXX")
         if [ "$SCAN_WORKTREE_INPUT" = "true" ]; then export SCAN_WORKTREE=1; fi
         status=0
         bash "$KIT/scripts/run-scan.sh" "$SCAN_PATH" "$reports" || status=$?
@@ -65,24 +66,40 @@ runs:
       shell: bash
       env:
         REPORTS: ${{ steps.scan.outputs.reports }}
+        SCAN_STATUS: ${{ steps.scan.outputs.status }}
         FAIL_ON: ${{ inputs.fail-on }}
       run: |
-        summary="$REPORTS/summary.json"
-        if [ ! -s "$summary" ]; then
-          echo "::error::security-audit-kit: no summary.json was written; the scan did not run"
+        # Fail closed: anything that is not a clean, complete, readable result fails the step.
+        case "$FAIL_ON" in
+          findings|error) ;;
+          *) echo "::error::security-audit-kit: fail-on must be findings or error, not '$FAIL_ON'"; exit 1 ;;
+        esac
+        command -v jq >/dev/null || { echo "::error::security-audit-kit: jq is required on the runner"; exit 1; }
+        if [ "$SCAN_STATUS" != "0" ]; then
+          echo "::error::security-audit-kit: the scan exited with ${SCAN_STATUS:-no status}: a scanner could not run or the scan stopped (see the job summary)"
           exit 1
         fi
-        if jq -e 'any(.[]; .status == "error")' "$summary" >/dev/null; then
+        summary="$REPORTS/summary.json"
+        # verdict <jq-filter>: prints true or false; any other outcome (unreadable JSON) fails.
+        verdict() {
+          local v
+          v=$(jq -r "$1" "$summary" 2>/dev/null) || v=""
+          case "$v" in
+            true|false) printf '%s' "$v" ;;
+            *) echo "::error::security-audit-kit: could not read $summary" >&2; exit 1 ;;
+          esac
+        }
+        # Assign first: an exit inside $( ) only leaves the subshell, so check each one here.
+        has_tools=$(verdict 'type == "object" and length > 0') || exit 1
+        has_error=$(verdict 'any(.[]; .status == "error")') || exit 1
+        has_findings=$(verdict 'any(.[]; (.count // 0) > 0)') || exit 1
+        [ "$has_tools" = true ] || { echo "::error::security-audit-kit: summary.json lists no scanners"; exit 1; }
+        if [ "$has_error" = true ]; then
           echo "::error::security-audit-kit: a scanner could not run (see the job summary)"
           exit 1
         fi
-        case "$FAIL_ON" in
-          error) ;;
-          findings)
-            if jq -e 'any(.[]; (.count // 0) > 0)' "$summary" >/dev/null; then
-              echo "::error::security-audit-kit: findings reported (see the job summary). Triage them; suppress a false positive in the scanned repository (nosemgrep, .gitleaksignore, osv-scanner.toml) with a reason"
-              exit 1
-            fi ;;
-          *) echo "::error::security-audit-kit: fail-on must be findings or error, not '$FAIL_ON'"; exit 1 ;;
-        esac
+        if [ "$FAIL_ON" = findings ] && [ "$has_findings" = true ]; then
+          echo "::error::security-audit-kit: findings reported (see the job summary). Triage them; suppress a false positive in the scanned repository (nosemgrep, .gitleaksignore, osv-scanner.toml) with a reason"
+          exit 1
+        fi
         echo "security-audit-kit: every scanner ran; fail-on=$FAIL_ON passed"
