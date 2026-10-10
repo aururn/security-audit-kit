@@ -89,20 +89,19 @@ osv_rc=$?
 if [ "$osv_rc" -le 1 ]; then
   # Triage starts from what ships, so say how many entries are in dev-only dependencies. The count
   # itself stays the total: a dev tool can still run on a developer's machine or in CI.
-  # - osv-scanner's groups exactly ["dev"]: dev-only, for every lockfile that has groups. For npm
-  #   this comes from the lockfile's "dev" flag, and a package that also ships (for example under
-  #   an alias) is reported without groups. pnpm-lock.yaml has no groups at all (see below).
-  # - ["dev", "optional"] from package-lock.json or npm-shrinkwrap.json: osv-scanner reports a
-  #   dev-only optional package (dev + optional) and a devOptional one (in the dev tree and in the
-  #   production optional tree, so it can ship) alike, so read npm's own flags: a name@version is
-  #   dev-only when every lockfile entry for it has "dev": true. Names follow osv-scanner: an
-  #   alias's real name, and the last path part (two for a scope) outside node_modules. A dev-only
-  #   optional package installed from git is not counted (osv-scanner names it by its URL).
-  osv_dev=$(jq '[.results[]?.packages[]? | select((.dependency_groups // []) == ["dev"]) | .vulnerabilities[]?] | length' "$OUT/osv.json" 2>/dev/null)
+  # - package-lock.json and npm-shrinkwrap.json: npm's own flags decide, not osv-scanner's groups
+  #   (those merge a dev-only optional package with a devOptional one, which can ship, and can lose
+  #   an alias that ships). A name@version is dev-only when every lockfile entry for it has
+  #   "dev": true. Names follow osv-scanner: an alias's real name, and the last path part (two for a
+  #   scope) outside node_modules. A package installed from git is not counted (osv-scanner names
+  #   it by its URL).
+  # - other lockfiles: osv-scanner's groups, exactly ["dev"]. pnpm-lock.yaml has none (see below).
+  npm_lock='endswith("package-lock.json") or endswith("npm-shrinkwrap.json")'
+  osv_dev=$(jq "[.results[]? | select((.source.path // \"\") | ($npm_lock) | not)
+    | .packages[]? | select((.dependency_groups // []) == [\"dev\"]) | .vulnerabilities[]?] | length" "$OUT/osv.json" 2>/dev/null)
   case "$osv_dev" in ''|*[!0-9]*) osv_dev=0 ;; esac
   # One jq run per lockfile: the lockfile is the input and osv.json is read from its file
   # (--slurpfile), so a large lockfile never has to fit in a command-line argument.
-  npm_lock='endswith("package-lock.json") or endswith("npm-shrinkwrap.json")'
   while IFS= read -r lock; do
     [ -f "$lock" ] || continue
     n=$(jq --arg lock "$lock" --slurpfile osv "$OUT/osv.json" '
@@ -121,7 +120,6 @@ if [ "$osv_rc" -le 1 ]; then
       ([if has("packages") then v2 else v1 end] | group_by(.k)
         | map(select(all(.dev)) | {key: .[0].k, value: true}) | from_entries) as $dev
       | [$osv[0].results[]? | select(.source.path == $lock) | .packages[]?
-         | select((.dependency_groups // []) == ["dev", "optional"])
          | select($dev[.package.name + "@" + .package.version] == true) | .vulnerabilities[]?] | length' "$lock" 2>/dev/null)
     case "$n" in ''|*[!0-9]*) n=0 ;; esac
     osv_dev=$((osv_dev + n))
