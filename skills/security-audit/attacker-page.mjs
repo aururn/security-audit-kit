@@ -109,7 +109,7 @@ fetch(C.url, init).then(async (r) => out('response readable: status ' + r.status
   .catch((e) => out('response not readable (' + e.message + '). The request may still have been sent: check the app log.'))`),
 }
 
-createServer((req, res) => {
+function handle(req, res) {
   const u = new URL(req.url, `http://${attackerHost}:${port}`)
   const make = pages[u.pathname]
   const url = resolve(u.searchParams.get('path') || '/')
@@ -120,6 +120,16 @@ createServer((req, res) => {
   }
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
   res.end(make(url, u.searchParams))
+}
+
+// One malformed request must not stop the helper in the middle of a browser session.
+createServer((req, res) => {
+  try {
+    handle(req, res)
+  } catch {
+    if (!res.headersSent) res.writeHead(400, { 'Content-Type': 'text/plain' })
+    res.end('bad request\n')
+  }
 }).listen(port, '127.0.0.1', () => {
   console.log(`attacker pages for ${origin}: open http://${attackerHost}:${port}/frame?path=/ (also /form, /fetch)`)
 })
