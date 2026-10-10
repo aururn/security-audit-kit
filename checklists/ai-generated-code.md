@@ -4,6 +4,8 @@ AI（コーディングエージェント、Lovable・Bolt・v0 などのアプ�
 言語やフレームワークに依存しない項目なので、専用のチェックリストがないアプリにも当てます。
 ★ = 一般に見落とされがちな項目。各項目は「確認」まで実行して判定する。
 
+鍵やパスワードが一致しうる grep は、`-o`（一致した部分だけ）か `-l`（ファイル名だけ）を付けて、値を画面やログに出さない（`AGENTS.md` の禁止事項）。
+
 ## 権限の検査が画面側だけ
 
 - [ ] ★ 管理画面や他人のデータを、画面で隠しているだけでなく、API 側でも拒否している
@@ -21,7 +23,7 @@ AI（コーディングエージェント、Lovable・Bolt・v0 などのアプ�
   - 確認（利用者の承認を取ってから。行の中身は取らない）: `curl -s -I "$SUPABASE_URL/rest/v1/<table>?select=*" -H "apikey: <anon key>" -H "Prefer: count=exact"`。HEAD なので本文は返らない。`Content-Range` の `/` の後の件数が 0 でなければ、ログインなしで読める
 - [ ] Supabase：ポリシーが `using (true)` や `with check (true)` で、全員に読み書きを許していない。所有者を `auth.uid()` で絞っている
 - [ ] ★ Supabase：`service_role` キー（新しい形式では `sb_secret_`）がクライアントのコードや公開される環境変数にない
-  - 確認: `grep -rnE "service_role|sb_secret_|SERVICE_ROLE" --include=*.{js,jsx,ts,tsx,vue,svelte} .` で、サーバー専用のファイル以外に出てこないか
+  - 確認: `grep -rnoE "service_role|sb_secret_|SERVICE_ROLE" --include=*.{js,jsx,ts,tsx,vue,svelte} .`（`-o` なので接頭辞だけが出る）で、サーバー専用のファイル以外に出てこないか
 - [ ] Supabase：Storage のバケットが意図せず public になっていない
 - [ ] ★ Firebase：`firestore.rules`・`storage.rules`・`database.rules.json` に `allow read, write: if true` や、テストモードの `request.time < timestamp.date(...)` が残っていない
   - テストモードの規則は、期限まで誰でも読み書きできる
@@ -33,7 +35,7 @@ AI（コーディングエージェント、Lovable・Bolt・v0 などのアプ�
 - [ ] ★ ブラウザに出る環境変数に秘密の鍵がない
   - 接頭辞: `NEXT_PUBLIC_`、`VITE_`、`EXPO_PUBLIC_`、`REACT_APP_`、`NUXT_PUBLIC_`、`PUBLIC_`（SvelteKit）
   - 秘密の鍵の例: `sk-`（OpenAI など）、`sk_live_`（Stripe）、`sb_secret_`、AWS の `AKIA`
-  - 確認: `.env*` と設定ファイルで接頭辞付きの変数を一覧にし、値の種類を確かめる。ビルド済みの JS を鍵の接頭辞で grep する
+  - 確認: `grep -rhoE "^(NEXT_PUBLIC|VITE|EXPO_PUBLIC|REACT_APP|NUXT_PUBLIC|PUBLIC)_[A-Z0-9_]+" .env* 2>/dev/null` で変数名だけを一覧にし、名前と使われ方から秘密の鍵でないか確かめる。ビルド済みの JS は `grep -rlE "sk-|sk_live_|sb_secret_|AKIA" .next/static dist build 2>/dev/null`（ファイル名だけ）
 - [ ] LLM や有料 API を、ブラウザから鍵付きで直接呼んでいない。サーバーを経由している
 
 ## 実在しない・似た名前のパッケージ
@@ -48,7 +50,7 @@ AI は実在しないパッケージ名を提案することがあり、その�
 
 - [ ] ★ 常に成功を返す検証や、決め打ちの値が残っていない
   - 例: 常に `true` を返す `verifyToken`、`isAdmin = true`、決め打ちのユーザーやパスワード、`?debug=1` や `x-test-user` ヘッダで認証を飛ばす口
-  - 確認: `grep -rnE "TODO|FIXME|HACK|XXX" . | grep -iE "auth|valid|secur|permission|rate|admin"`、`grep -rnE "return true|isAdmin\s*=\s*true|password\s*[:=]\s*['\"]" .`
+  - 確認: `grep -rnoiE "(TODO|FIXME|HACK|XXX).{0,60}(auth|valid|secur|permission|rate|admin)" --exclude-dir=node_modules .`、`grep -rnoE "return true|isAdmin\s*=\s*true|password\s*[:=]\s*['\"]" --exclude-dir=node_modules .`（`-o` なので、パスワードの値は出ない）
 - [ ] seed 用・デバッグ用のエンドポイント（`/api/seed`、`/api/reset`、`/api/debug`、`/api/test`）が本番で使えない
 - [ ] 本文・トークン・パスワード・プロンプトをそのままログに出していない（`console.log(req.body)` など）
 
