@@ -24,6 +24,10 @@ AI（コーディングエージェント、Lovable・Bolt・v0 などのアプ�
 - [ ] Supabase：ポリシーが `using (true)` や `with check (true)` で、全員に読み書きを許していない。所有者を `auth.uid()` で絞っている
 - [ ] ★ Supabase：`service_role` キー（新しい形式では `sb_secret_`）がクライアントのコードや公開される環境変数にない
   - 確認: `grep -rnoE "service_role|sb_secret_|SERVICE_ROLE" --include=*.{js,jsx,ts,tsx,vue,svelte} .`（`-o` なので接頭辞だけが出る）で、サーバー専用のファイル以外に出てこないか
+- [ ] ★ Supabase：サーバーが DB に直接つなぐ場合（Drizzle、Prisma、`pg` など）、そのロールで RLS が効く
+  - Supabase が最初から用意する `postgres` ロールは、superuser ではないが `BYPASSRLS` を持ち、多くのテーブルの所有者でもある。その接続文字列で動かすと、ポリシーは 1 つも効かない。`FORCE ROW LEVEL SECURITY` は所有者には効くが、`BYPASSRLS` を持つロールには効かない
+  - 確認: アプリが使う接続文字列のユーザー名を確かめる（値は出さない。`DATABASE_URL` のユーザー部分が `postgres` か `postgres.<project ref>` なら危ない）。DB に接続できれば、そのロールで `select rolname, rolsuper, rolbypassrls from pg_roles where rolname = current_user;`
+  - 本番の接続文字列はコードからは分からない。「RLS で分離している」と README に書いてあっても、未確認として利用者に確認を依頼する
 - [ ] Supabase：Storage のバケットが意図せず public になっていない
 - [ ] ★ Firebase（Firestore・Storage）：`firestore.rules`・`storage.rules` に `allow read, write: if true` や、テストモードの `request.time < timestamp.date(...)` が残っていない
   - テストモードの規則は、期限まで誰でも読み書きできる
