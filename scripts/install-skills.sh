@@ -5,8 +5,10 @@
 #   install-skills.sh --check    do not install; report which installed skills came from an older
 #                                kit commit than this checkout, and how to update. --check only
 #                                reports (it ignores --force and writes nothing).
-# Each installed skill records the kit commit it came from in a .kit-version file, so --check can
-# tell a stale copy from a current one. The file lives only in the installed copy, not in the repo.
+# Each installed skill records, in a .kit-version file, the kit commit it came from (line 1), that
+# commit's date (line 2) and this checkout's path (line 3). --check compares line 1 with this
+# checkout; the skills read line 3 to find scripts/run-scan.sh. The file lives only in the
+# installed copy, not in the repo.
 set -euo pipefail
 
 KIT_DIR=$(cd "$(dirname "$0")/.." && pwd)
@@ -22,6 +24,10 @@ done
 
 kit_sha=$(git -C "$KIT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)
 kit_date=$(git -C "$KIT_DIR" show -s --format=%cs HEAD 2>/dev/null || echo unknown)
+# Record the checkout path in a form every tool can open: on Windows (Git Bash), C:/... rather
+# than /c/..., because agents also read it with non-shell tools.
+kit_path=$KIT_DIR
+command -v cygpath >/dev/null 2>&1 && kit_path=$(cygpath -m "$KIT_DIR")
 
 DESTS=("$HOME/.claude/skills" "$HOME/.codex/skills")
 
@@ -66,7 +72,7 @@ for dest in "${DESTS[@]}"; do
     fi
     rm -rf "${dest:?}/$name"
     cp -R "$skill" "$dest/$name"
-    printf '%s\n%s\n' "$kit_sha" "$kit_date" > "$dest/$name/.kit-version"
+    printf '%s\n%s\n%s\n' "$kit_sha" "$kit_date" "$kit_path" > "$dest/$name/.kit-version"
     echo "install $dest/$name ($kit_sha)"
   done
 done

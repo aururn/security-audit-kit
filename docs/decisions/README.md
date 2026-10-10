@@ -11,3 +11,4 @@
 | [0004](0004-semgrep-rules-baked.md) | Semgrep のルールをイメージに取り込む | 採用 |
 | [0005](0005-canary-test.md) | キットの検出力をカナリアで確かめる | 採用 |
 | [0006](0006-base-image-mirror.md) | ベースイメージを Docker Hub のミラーから取る | 採用 |
+| [0007](0007-plugin-distribution.md) | Claude Code の plugin として配る | 採用 |
