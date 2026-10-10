@@ -97,13 +97,15 @@ scanners downloaded on the spot: they are not pinned or verified.
 
 Triage every hit. Typical false positives: minified vendor code, build output (`.next/`,
 `dist/`), test fixtures with fake keys, and gitleaks' `generic-api-key` on an empty `NAME=` line
-in a dotenv file (often `.env.example`) that read the next setting as the value. Dismiss that one
-only when `StartLine` and `EndLine` differ and this check, run on the version the hit came from
-(the file on disk for `gitleaks-worktree`), prints `empty, then another setting`. It prints one of
-two fixed phrases, never the lines; on `check by hand`, treat the hit as real.
+in a dotenv file (often `.env.example`) that read the next setting as the value. That hit also
+covers the next setting, and gitleaks does not report it separately, so never dismiss it on your
+own. When `StartLine` and `EndLine` differ, run this check on the version the hit came from (the
+file on disk for `gitleaks-worktree`); it prints one of two fixed phrases, never the lines. On
+`real`, treat the hit as real. On `ask the user`, give them the file, `EndLine` and commit, and
+dismiss it only after they confirm that setting holds no credential.
 
 ```sh
-git show <Commit>:<File> | awk -v s=<StartLine> 'NR==s {a = ($0 ~ /^[A-Za-z_][A-Za-z0-9_]*=[[:space:]]*$/)} NR==s+1 {b = ($0 ~ /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+=/)} END {print (a && b) ? "empty, then another setting" : "check by hand"}'
+git show <Commit>:<File> | awk -v s=<StartLine> 'NR==s {a = ($0 ~ /^[A-Za-z_][A-Za-z0-9_]*=[[:space:]]*$/)} NR==s+1 {b = ($0 ~ /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+=/)} END {print (a && b) ? "ask the user" : "real"}'
 ```
 
 Confirm build output is gitignored and never committed before dismissing it. `pnpm audit --prod`
