@@ -96,7 +96,9 @@ Docker Desktop, because the scan needs it. If they decline, continue with steps 
 scanners downloaded on the spot: they are not pinned or verified.
 
 Triage every hit. Typical false positives: minified vendor code, build output (`.next/`,
-`dist/`), test fixtures with fake keys. Confirm build output is gitignored and never committed
+`dist/`), test fixtures with fake keys, and gitleaks' `generic-api-key` on an empty `NAME=` line
+(often in `.env.example`) that read the next line as the value: its `StartLine` and `EndLine`
+differ, and nothing follows `=` in the file. Confirm build output is gitignored and never committed
 before dismissing it. `pnpm audit --prod` counts dependencies declared in `dependencies`
 even if they are dev tools (e.g. `eslint-config-next`); report them as such, not as runtime risk.
 

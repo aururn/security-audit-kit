@@ -67,6 +67,7 @@ Never print secret values in the report, chat, issues or logs. Summarise rule, f
 | Minified vendor bundles (`public/vs/**`, `*.min.js`) | false positive (identifier looks random) | read the matched token context |
 | Build output (`.next/`, `dist/`, caches) | local random keys, never committed | `git check-ignore -v <path>`, and `git log --all --oneline -- <dir>` prints nothing |
 | Test fixtures (`ci-test-key`, `example`) | fake | the value is used only by tests and fixtures |
+| `generic-api-key` on an empty `NAME=` line (often `.env.example`) whose `StartLine` and `EndLine` differ | false positive: the rule read the next line as the value | in the report, `Match` is `NAME=`, a line break, then `REDACTED`; in the file, nothing follows `=` on `StartLine` |
 | `.env*` other than `.env.example` | real | `git ls-files` filtered for `.env` |
 
 Also check what gitleaks does not know about:
