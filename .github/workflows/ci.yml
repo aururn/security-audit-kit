@@ -35,6 +35,11 @@ jobs:
       - name: Skill references are in sync
         run: scripts/build-skill-references.sh --check
 
+      # The DAST wrapper must refuse non-local targets (including ones that only look local) and
+      # must not report a scan with WARN alerts as clean. Uses a fake docker; no ZAP needed.
+      - name: DAST host guard and exit codes
+        run: tests/test-dast-guard.sh
+
       # Builds the image (verifying every pinned checksum and that no Semgrep ruleset is empty)
       # and scans this repository with it. The kit itself must be clean.
       - name: Scan this repository with the kit

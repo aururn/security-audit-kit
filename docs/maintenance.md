@@ -35,6 +35,7 @@ CI（amd64・arm64）は、これに加えて次を確かめます。
 
 - キット自身をスキャンして、全ツールが0件
 - shellcheck
+- `tests/test-dast-guard.sh`：`dast-baseline.sh` がローカル以外（`http://localhost:1@evil.example` のように、ローカルに見えるだけのものを含む）を拒否すること、WARN のある結果を「問題なし」と表示しないこと。docker を偽物に差し替えて動かすので、ZAP は要りません
 
 ## 既知の制限
 
