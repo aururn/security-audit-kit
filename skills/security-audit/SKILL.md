@@ -49,6 +49,13 @@ Answer in the report:
   mirror may be the real deploy source.)
 - Is the repository public? If so, findings go to a private channel (see `references/principles.md`).
 
+Then fill in `references/templates/scope.md`: the target commit, the URLs where dynamic tests
+are allowed (localhost or a staging host the user owns), the URLs that get read-only requests
+only (production), and what will not be done. Show it to the user and get their approval
+before step 4. Steps 4 and 5, the DAST baseline and any browser check go only to the URLs it
+lists. If the user changes the scope later, update the file and get approval again. Keep the
+file with the report, not in the target repository.
+
 ## 1. Map the entry points
 
 - Route handlers, API routes, Server Actions, Middleware, webhooks, cron endpoints
@@ -109,7 +116,8 @@ and `%2F` redirect an API-key-bearing request to another upstream path).
 
 ## 4. Reproduce locally
 
-Never probe production with attacks. Instead:
+Only against the URLs the approved scope allows for dynamic tests. Never probe production
+with attacks. Instead:
 
 1. Start `fake-upstream.mjs` (in this skill directory). It logs method, path, whether an
    Authorization header was present, and the body; it can also answer with an error status.
@@ -128,7 +136,7 @@ component or library with hostile input and inspect the output HTML.
 
 ## 5. Production, read-only
 
-Allowed: `GET` of pages and static files, response headers, cookie attributes, `robots.txt`,
+Only the URLs the approved scope lists as read-only. Allowed: `GET` of pages and static files, response headers, cookie attributes, `robots.txt`,
 sizes of large assets, requests that are rejected before reaching any paid upstream.
 Not allowed: anything that triggers LLM calls, writes data, or scans aggressively.
 
