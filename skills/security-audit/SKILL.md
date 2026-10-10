@@ -142,8 +142,10 @@ with attacks. Instead:
 
 ### In a browser
 
-XSS, CSRF with cookies and framing only show in a real browser. Use Playwright (`npx playwright`)
-or a browser-automation tool you have, against the local app only.
+XSS, CSRF with cookies and framing only show in a real browser. Use a browser-automation tool you
+already have, or Playwright only if the project already pins it in its lockfile
+(`npx --no-install playwright ...`, which never downloads). Do not install a browser or a tool on
+the spot without the user's approval. Point it at the local app only.
 
 - **XSS**: render the real component with hostile input (markdown, links, images, HTML). Use a
   payload that leaves a mark instead of `alert()`, such as
@@ -158,8 +160,12 @@ or a browser-automation tool you have, against the local app only.
   - `/frame?path=/`: the app in an iframe. Take a screenshot: an unprotected app renders inside
     the frame; a protected one (`frame-ancestors` or `X-Frame-Options`) shows the browser's
     refused-frame page. The page cannot tell the two apart itself, because the frame is cross-site
-  - `/form?path=/api/x&body={"message":"hi"}`: a cross-site `text/plain` POST whose body parses
-    as JSON (the form's `=` goes at the end of the last string field, so no field is added).
+  - `/form?path=/api/x&body={"message":"hi"}&field=message`: a cross-site `text/plain` POST whose
+    body parses as JSON. The form adds `=` at the end of one string field (`field`, by default the
+    last one), so pick a free-text field, not an ID or an enum. First send the same body, with
+    that `=`, as a normal same-site request with the user's session (`curl` with the cookie): if
+    the app rejects it, the probe tests validation, not CSRF; change the body or report the check
+    as inconclusive.
     Read the app's log or `upstream.log`: was it processed with the user's cookies? If the session
     cookie has no SameSite attribute, run it again with `&top=1` (a top-level navigation): some
     browser versions send such cookies on a top-level cross-site POST for two minutes after they
