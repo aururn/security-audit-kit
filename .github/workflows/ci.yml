@@ -35,6 +35,11 @@ jobs:
       - name: Skill references are in sync
         run: scripts/build-skill-references.sh --check
 
+      # install-skills.sh in a throwaway HOME: skills land with their references and a
+      # .kit-version that finds the scanner; --check tells up to date, stale and untracked apart.
+      - name: install-skills.sh
+        run: tests/test-install-skills.sh
+
       # The DAST wrapper must refuse non-local targets (including ones that only look local) and
       # must not report a scan with WARN alerts as clean. Uses a fake docker; no ZAP needed.
       - name: DAST host guard and exit codes
