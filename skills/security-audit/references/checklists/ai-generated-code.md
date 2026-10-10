@@ -22,6 +22,9 @@ AI（コーディングエージェント、Lovable・Bolt・v0 などのアプ�
   - 確認: マイグレーションに `enable row level security` がテーブルごとにあるか。DB に接続できれば `select tablename, rowsecurity from pg_tables where schemaname = 'public';`
   - 確認（利用者の承認を取ってから。行の中身は取らない）: `curl -s -I "$SUPABASE_URL/rest/v1/<table>?select=*" -H "apikey: <anon key>" -H "Prefer: count=exact"`。HEAD なので本文は返らない。`Content-Range` の `/` の後の件数が 0 でなければ、ログインなしで読める
 - [ ] Supabase：ポリシーが `using (true)` や `with check (true)` で、全員に読み書きを許していない。所有者を `auth.uid()` で絞っている
+- [ ] ★ Supabase：公開されるスキーマの関数を、ブラウザの鍵で `rpc` から呼べない。呼べるなら、関数の中で `auth.uid()` と権限を確かめている
+  - Postgres の関数は、既定で誰でも実行できる（`PUBLIC`）。公開されるスキーマの関数は `POST /rest/v1/rpc/<関数名>` で呼べる。`security definer` の関数は作った人の権限で動き、RLS が効かない。引数で渡した利用者 ID や組織 ID をそのまま信じる関数は、他人として操作できる
+  - 確認: マイグレーションで、関数ごとに `revoke all on function ... from public, anon, authenticated;`（サーバーだけが呼ぶ関数）があるか。無い関数のうち `security definer` のものは、中で `auth.uid()` を確かめているかを読む
 - [ ] ★ Supabase：`service_role` キー（新しい形式では `sb_secret_`）がクライアントのコードや公開される環境変数にない
   - 確認: `grep -rnoE "service_role|sb_secret_|SERVICE_ROLE" --include=*.{js,jsx,ts,tsx,vue,svelte} .`（`-o` なので接頭辞だけが出る）で、サーバー専用のファイル以外に出てこないか
 - [ ] Supabase：Storage のバケットが意図せず public になっていない
