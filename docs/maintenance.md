@@ -44,6 +44,16 @@ CI（amd64・arm64）は、これに加えて次を確かめます。
 - shellcheck
 - `tests/test-dast-guard.sh`：`dast-baseline.sh` がローカル以外（`http://localhost:1@evil.example` のように、ローカルに見えるだけのものを含む）を拒否すること、WARN のある結果を「問題なし」と表示しないこと。docker を偽物に差し替えて動かすので、ZAP は要りません
 
+## skill の選ばれ方を確かめる（手動）
+
+skill の `description` を変えたら、頼み方ごとに期待した skill が選ばれるかを確かめます。Claude Code にログインした状態で使い、1 件ごとに少し利用量がかかるので、CI では動かしません。
+
+```sh
+evals/skill-triggers.sh /path/to/some-repo
+```
+
+結果と、実際のリポジトリで確かめたことは [検証の記録](validation.md) に残します。
+
 ## 既知の制限
 
 - Semgrep のルールはイメージのビルド時点のものです。取り込みから `SEMGREP_RULES_MAX_AGE_DAYS`（既定 30）日より古いと、スキャン結果の note に経過日数が出ます。新しいルールにするには、イメージを作り直します（キャッシュを無視するなら `docker build --no-cache docker/`）（[#4](https://github.com/aururn/security-audit-kit/issues/4)）
