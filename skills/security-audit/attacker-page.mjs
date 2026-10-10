@@ -11,7 +11,7 @@
 //                        top=1 submits as a top-level navigation instead of into an iframe: some
 //                        browser versions send cookies without a SameSite attribute only that way
 //                        (Lax+POST, for two minutes after the cookie is set)
-//   /fetch?path=/api/x&method=POST&body={...}
+//   /fetch?path=/api/x&method=POST&body={...}[&type=json]
 //                        a credentialed fetch; shows whether the response was readable
 // The pages are served from the other loopback name (localhost <-> 127.0.0.1), so the browser
 // treats them as a different site and applies SameSite and CORS as it would for a real attacker.
@@ -101,12 +101,22 @@ document.body.appendChild(form)
 out('POST ' + C.url + ' (text/plain, ' + (C.top ? 'top-level navigation' : 'into an iframe') + ') body: ' + head + '=' + tail)
 out('check the app log: was it processed with the user\\'s cookies?' + (C.top ? '' : ' If the cookie has no SameSite attribute, try top=1 too (some browsers send it only on a top-level POST).'))
 form.submit()`),
-  '/fetch': (url, q) => page('fetch', { url, method: (q.get('method') || 'GET').toUpperCase(), body: q.get('body') }, `
+  '/fetch': (url, q) => page('fetch', { url, method: (q.get('method') || 'GET').toUpperCase(), body: q.get('body'), type: q.get('type') === 'json' ? 'application/json' : 'text/plain' }, `
 const init = { method: C.method, credentials: 'include', mode: 'cors' }
-if (C.body !== null && C.method !== 'GET' && C.method !== 'HEAD') { init.body = C.body; init.headers = { 'Content-Type': 'text/plain' } }
-out(C.method + ' ' + C.url + ' with credentials')
-fetch(C.url, init).then(async (r) => out('response readable: status ' + r.status + ', ' + (await r.text()).slice(0, 300)))
-  .catch((e) => out('response not readable (' + e.message + '). The request may still have been sent: check the app log.'))`),
+// text/plain (default) is a simple request with no preflight; type=json sends application/json,
+// which needs the server's CORS preflight to allow this origin with credentials.
+if (C.body !== null && C.method !== 'GET' && C.method !== 'HEAD') { init.body = C.body; init.headers = { 'Content-Type': C.type } }
+out(C.method + ' ' + C.url + ' with credentials' + (init.headers ? ' (' + C.type + ')' : ''))
+fetch(C.url, init).then(async (r) => {
+  // Readable as soon as the headers arrive; read only a short preview, so a stream (SSE) that never
+  // ends cannot hold the result back or fill memory.
+  out('response readable: status ' + r.status)
+  if (!r.body) return
+  const reader = r.body.getReader()
+  const first = await reader.read()
+  reader.cancel().catch(() => {})
+  if (first.value) out('first bytes: ' + new TextDecoder().decode(first.value.slice(0, 300)))
+}).catch((e) => out('response not readable (' + e.message + '). The request may still have been sent: check the app log.'))`),
 }
 
 function handle(req, res) {
@@ -115,7 +125,7 @@ function handle(req, res) {
   const url = resolve(u.searchParams.get('path') || '/')
   if (!make || !url) {
     res.writeHead(404, { 'Content-Type': 'text/plain' })
-    res.end('pages: /frame?path=/  /form?path=/api/x&body={...}  /fetch?path=/api/x&method=POST&body=...  (path must start with /)\n')
+    res.end('pages: /frame?path=/  /form?path=/api/x&body={...}  /fetch?path=/api/x&method=POST&body=...[&type=json]  (path must start with /)\n')
     return
   }
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })

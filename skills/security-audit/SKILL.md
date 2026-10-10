@@ -170,7 +170,11 @@ the spot without the user's approval. Point it at the local app only.
     cookie has no SameSite attribute, run it again with `&top=1` (a top-level navigation): some
     browser versions send such cookies on a top-level cross-site POST for two minutes after they
     are set (Lax+POST), never on one into an iframe. Report which browser and version you used
-  - `/fetch?path=/api/x&method=POST&body=...`: a credentialed cross-site fetch
+  - `/fetch?path=/api/x&method=POST&body=...`: a credentialed cross-site fetch with a
+    `text/plain` body (no preflight). Add `&type=json` to send `application/json`, which the
+    browser only sends if the server's CORS preflight allows this origin with credentials. The
+    page reports as soon as the response headers are readable and shows only the first bytes,
+    so a streamed (SSE) response does not hold the result back
 
   Log in to the app first in the same browser profile, so its cookies are sent as they would be
   for a real user. Chromium may block frames between loopback addresses (Local Network Access);
