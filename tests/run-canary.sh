@@ -133,6 +133,18 @@ if ! skipped secret; then
   fi
 fi
 
+# The lockfile has a vulnerable devDependency (minimist) next to a vulnerable runtime one (lodash).
+# The note must count the dev-only entries, so triage can start from what ships.
+if ! skipped package-lock; then
+  osv_note=$(json '.["osv-scanner"].note // ""' 'd["osv-scanner"]?.note??""' < "$SUMMARY")
+  if [[ $osv_note =~ \(([0-9]+)\ in\ dev-only\ dependencies\) ]] && [ "${BASH_REMATCH[1]}" -ge 1 ]; then
+    echo "osv-scanner note counts dev-only entries ($osv_note): PASS"
+  else
+    echo "osv-scanner note does not count dev-only entries ($osv_note): FAIL"
+    failed=1
+  fi
+fi
+
 # semgrep also flags the workflow and the token file; require a hit in the JavaScript fixture so
 # that the JavaScript rulesets are proven to be loaded as well.
 if ! skipped server; then

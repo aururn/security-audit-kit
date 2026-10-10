@@ -85,7 +85,19 @@ if find "$SRC" -name osv-scanner.toml -not -path '*/node_modules/*' -print -quit
   osv_note="$osv_note (osv-scanner.toml present: some vulns may be ignored)"
 fi
 osv-scanner scan source -r "$SRC" --format json --output "$OUT/osv.json" >"$OUT/osv.log" 2>&1
-case $? in
+osv_rc=$?
+if [ "$osv_rc" -le 1 ]; then
+  # Triage starts from what ships. osv-scanner marks dev-only packages for package-lock.json
+  # ("dev") but not for pnpm-lock.yaml, so count the marked ones and say where nothing is marked.
+  # The count itself stays the total: a dev tool can still run on a developer's machine or in CI.
+  osv_dev=$(jq '[.results[]?.packages[]? | select((.dependency_groups // []) | index("dev")) | .vulnerabilities[]?] | length' "$OUT/osv.json" 2>/dev/null)
+  case "$osv_dev" in ''|*[!0-9]*) osv_dev=0 ;; esac
+  [ "$osv_dev" -gt 0 ] && osv_note="$osv_note ($osv_dev in dev-only dependencies)"
+  if jq -e '[.results[]? | select((.source.path // "") | endswith("pnpm-lock.yaml")) | .packages[]?.vulnerabilities[]?] | length > 0' "$OUT/osv.json" >/dev/null 2>&1; then
+    osv_note="$osv_note (pnpm-lock.yaml: dev and runtime dependencies not told apart)"
+  fi
+fi
+case $osv_rc in
   0|1) record osv-scanner ok "$(count_json "$OUT/osv.json" '[.results[]?.packages[]?.vulnerabilities[]?] | length')" osv.json "$osv_note" ;;
   128) record osv-scanner skipped null "" "no lockfiles found" ;;
   *) record osv-scanner error null osv.log "see osv.log" ;;
