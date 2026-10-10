@@ -45,9 +45,11 @@ const port = Number(portArg)
 const attackerHost = target.hostname === 'localhost' ? '127.0.0.1' : 'localhost'
 
 // resolve(path): a URL on the target origin, or null for anything that would leave it.
+// A backslash is rejected outright: URL parsers treat "/\" like "//", which can change the host.
 function resolve(path) {
-  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) return null
-  const u = new URL(path, origin)
+  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) return null
+  let u
+  try { u = new URL(path, origin) } catch { return null }
   return u.origin === origin ? u.href : null
 }
 
