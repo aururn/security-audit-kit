@@ -47,13 +47,21 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 # Fail the build if a ruleset comes back empty, instead of silently scanning with nothing.
+# The registry sometimes answers with an error or an empty body for a moment (seen on CI runners),
+# so each ruleset gets a few attempts before the build fails; the failure says what came back.
 RUN set -eu; \
   mkdir -p /opt/semgrep-rules; \
   for rs in $SEMGREP_RULESETS; do \
-    curl -fsSL "https://semgrep.dev/c/p/${rs}" -o "/opt/semgrep-rules/${rs}.yml"; \
-    n=$(grep -c '^- id:' "/opt/semgrep-rules/${rs}.yml" || true); \
-    [ "$n" -gt 0 ] || { echo "semgrep ruleset p/${rs} is empty" >&2; exit 1; }; \
-    echo "p/${rs}: ${n} rules, sha256 $(sha256sum "/opt/semgrep-rules/${rs}.yml" | cut -c1-16)"; \
+    f="/opt/semgrep-rules/${rs}.yml"; n=0; code=none; \
+    for attempt in 1 2 3 4; do \
+      code=$(curl -sSL --retry 2 --retry-all-errors -o "$f" -w '%{http_code}' "https://semgrep.dev/c/p/${rs}" || echo "curl-failed"); \
+      n=$(grep -c '^- id:' "$f" 2>/dev/null || true); \
+      if [ "$code" = 200 ] && [ "${n:-0}" -gt 0 ]; then break; fi; \
+      echo "p/${rs}: attempt ${attempt}: HTTP ${code}, ${n:-0} rules" >&2; \
+      if [ "$attempt" -lt 4 ]; then sleep $((attempt * 10)); fi; \
+    done; \
+    [ "$code" = 200 ] && [ "${n:-0}" -gt 0 ] || { echo "semgrep ruleset p/${rs} is empty or unavailable (HTTP ${code})" >&2; exit 1; }; \
+    echo "p/${rs}: ${n} rules, sha256 $(sha256sum "$f" | cut -c1-16)"; \
   done; \
   date -u +%Y-%m-%dT%H:%M:%SZ > /opt/semgrep-rules/FETCHED_AT
 
