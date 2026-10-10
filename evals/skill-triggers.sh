@@ -17,6 +17,17 @@ command -v cygpath >/dev/null 2>&1 && KIT_DIR=$(cygpath -m "$KIT_DIR")
 TARGET=$1
 OUT=$(mktemp -d "${TMPDIR:-/tmp}/skill-triggers.XXXXXX")
 
+# A time limit per case: GNU timeout, or gtimeout (Homebrew coreutils on macOS). Without either,
+# cases run with no limit rather than all failing.
+if command -v timeout >/dev/null 2>&1; then
+  limited() { timeout 300 "$@"; }
+elif command -v gtimeout >/dev/null 2>&1; then
+  limited() { gtimeout 300 "$@"; }
+else
+  echo "note: no timeout or gtimeout command; cases run without a time limit" >&2
+  limited() { "$@"; }
+fi
+
 # expected skill | request. "none" means no skill of this kit should be picked.
 cases=(
   "security-audit|このリポジトリの脆弱性を調べて"
@@ -39,7 +50,7 @@ for c in "${cases[@]}"; do
   # --tools limits the built-in tools to Skill and --strict-mcp-config loads no MCP server, so a
   # run can only pick a skill; --allowedTools lets it do so without a permission prompt.
   rc=0
-  (cd "$TARGET" && timeout 300 claude -p "$prompt" --plugin-dir "$KIT_DIR" --output-format stream-json --verbose \
+  (cd "$TARGET" && limited claude -p "$prompt" --plugin-dir "$KIT_DIR" --output-format stream-json --verbose \
     --tools Skill --strict-mcp-config --allowedTools Skill \
     >"$OUT/case$i.jsonl" 2>"$OUT/case$i.err") || rc=$?
   # The first call to one of this plugin's skills, by full name ("security-audit-kit:<skill>");
