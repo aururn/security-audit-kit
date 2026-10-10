@@ -36,6 +36,48 @@ Docker のイメージをビルドし、対象を読み取り専用でマウン�
 > [!NOTE]
 > Windows の Docker Desktop ではフォルダのマウントが遅く、大きなリポジトリでは Semgrep に数分かかることがあります。
 
+## GitHub Actions で PR ごとに回す
+
+同じスキャナを、利用者のリポジトリの CI で push と PR のたびに動かせます。Docker が要るので、Linux の runner（`ubuntu-latest`、`ubuntu-24.04-arm`）で動かします。
+
+```yaml
+name: Security scan
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0             # 秘密情報の検査に全履歴を含める
+          persist-credentials: false
+      - uses: aururn/security-audit-kit@<commit SHA> # タグではなく SHA で固定する
+        with:
+          fail-on: findings
+```
+
+| 入力 | 既定 | 意味 |
+| --- | --- | --- |
+| `path` | `.` | スキャンするディレクトリ |
+| `fail-on` | `findings` | `findings`：指摘が 1 件でもあるか、スキャナが動かなければ失敗。`error`：スキャナが動かなかったときだけ失敗 |
+| `worktree` | `false` | `true` で、作業ツリーの秘密情報も検査する（`SCAN_WORKTREE=1`） |
+| `upload-reports` | `private` | レポートを artifact に上げるか。`private` は非公開リポジトリのときだけ。`always`、`never` |
+| `artifact-name` | `security-audit-reports` | artifact の名前。matrix で複数のジョブから使うときは、ジョブごとに変える |
+
+- 結果の表（`summary.txt`）はジョブの概要に出ます
+- 公開リポジトリの artifact は誰でもダウンロードできます。レポートには指摘の詳細が入るので、`upload-reports` の既定では上げません
+- 既にある指摘で PR が止まる場合は、まず `fail-on: error` で入れ、指摘を片付けてから `findings` にします。誤検出は、対象のリポジトリ側で理由を添えて抑えます（`nosemgrep`、`.gitleaksignore`、`osv-scanner.toml`）。抑えたことは結果の note に出ます
+- Dependabot の `github-actions` を有効にしていれば、固定した SHA の更新も提案されます
+
 ## 動的スキャン（任意）
 
 ```sh

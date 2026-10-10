@@ -41,14 +41,54 @@ jobs:
         run: tests/test-dast-guard.sh
 
       # Builds the image (verifying every pinned checksum and that no Semgrep ruleset is empty)
-      # and scans this repository with it. The kit itself must be clean.
-      - name: Scan this repository with the kit
-        run: scripts/run-scan.sh . reports
+      # and scans this repository with it, through the same action users run (action.yml).
+      # The kit itself must be clean. Reports are not uploaded: this repository is public.
+      # `uses: ./` runs the action from this checkout, i.e. the commit under test. zizmor suggests
+      # GitHub's newer `uses: $/` form, but actionlint 1.7.12 (pinned in the image) rejects it, so
+      # the zizmor hint is ignored on these lines until actionlint understands the new form.
+      - name: Scan this repository with the kit (action)
+        id: kitscan
+        uses: ./ # zizmor: ignore[self-repository]
+        with:
+          fail-on: findings
+          upload-reports: never
       - name: Kit is clean and every scanner ran
+        env:
+          REPORTS: ${{ steps.kitscan.outputs.reports }}
         run: |
-          cat reports/summary.txt
-          jq -e 'all(.[]; .status != "error")' reports/summary.json
-          jq -e '.gitleaks.count == 0 and .semgrep.count == 0 and .zizmor.count == 0 and .actionlint.count == 0 and .["osv-scanner"].count == 0' reports/summary.json
+          jq -e 'all(.[]; .status != "error")' "$REPORTS/summary.json"
+          jq -e '.gitleaks.count == 0 and .semgrep.count == 0 and .zizmor.count == 0 and .actionlint.count == 0 and .["osv-scanner"].count == 0' "$REPORTS/summary.json"
+
+      # The action must fail a repository with findings (fail-on: findings) and pass it when only
+      # scanner errors count (fail-on: error).
+      - name: Prepare a target with a finding
+        run: |
+          mkdir -p "$RUNNER_TEMP/action-canary/app"
+          cp tests/canary/server.js.fixture "$RUNNER_TEMP/action-canary/app/server.js"
+          echo "ACTION_CANARY=$RUNNER_TEMP/action-canary" >> "$GITHUB_ENV"
+      - name: Action with fail-on findings (must fail)
+        id: failon_findings
+        continue-on-error: true
+        uses: ./ # zizmor: ignore[self-repository]
+        with:
+          path: ${{ env.ACTION_CANARY }}
+          fail-on: findings
+          upload-reports: never
+      - name: Action with fail-on error (must pass)
+        id: failon_error
+        continue-on-error: true
+        uses: ./ # zizmor: ignore[self-repository]
+        with:
+          path: ${{ env.ACTION_CANARY }}
+          fail-on: error
+          upload-reports: never
+      - name: fail-on behaves as documented
+        env:
+          FINDINGS_OUTCOME: ${{ steps.failon_findings.outcome }}
+          ERROR_OUTCOME: ${{ steps.failon_error.outcome }}
+        run: |
+          echo "fail-on findings: $FINDINGS_OUTCOME, fail-on error: $ERROR_OUTCOME"
+          [ "$FINDINGS_OUTCOME" = failure ] && [ "$ERROR_OUTCOME" = success ]
 
       # The canary proves each scanner is wired up: every tool must flag the planted issue.
       - name: Canary detection test

@@ -1,0 +1,88 @@
+# Composite action: scan the calling repository with the kit's pinned scanners on every push or
+# pull request. Pin it by commit SHA, like any third-party action:
+#   - uses: aururn/security-audit-kit@<commit SHA>
+# Inputs reach the shell only through env, never through ${{ }} inside run: (template injection).
+name: security-audit-kit scan
+description: Scan a repository for secrets, vulnerable or malicious dependencies, SAST findings and risky GitHub Actions with pinned, checksum-verified scanners.
+author: aururn
+
+inputs:
+  path:
+    description: Directory to scan, relative to the workspace.
+    default: .
+  fail-on:
+    description: "findings: fail when any scanner reports a finding or could not run. error: fail only when a scanner could not run."
+    default: findings
+  worktree:
+    description: "true: also scan the working tree for secrets (gitignored files included), not only git history."
+    default: "false"
+  upload-reports:
+    description: "private: upload the reports as an artifact only in a private repository. always / never. Artifacts of a public repository can be downloaded by anyone, and the reports carry finding details."
+    default: private
+  artifact-name:
+    description: Artifact name for the reports (must be unique within a workflow run, e.g. per matrix job).
+    default: security-audit-reports
+
+outputs:
+  reports:
+    description: Directory that holds summary.json, summary.txt and each scanner's report.
+    value: ${{ steps.scan.outputs.reports }}
+  status:
+    description: Exit code of the scan (0 = every scanner ran, 2 = at least one scanner failed).
+    value: ${{ steps.scan.outputs.status }}
+
+runs:
+  using: composite
+  steps:
+    - name: Scan
+      id: scan
+      shell: bash
+      env:
+        KIT: ${{ github.action_path }}
+        SCAN_PATH: ${{ inputs.path }}
+        SCAN_WORKTREE_INPUT: ${{ inputs.worktree }}
+      run: |
+        reports="$RUNNER_TEMP/security-audit-reports"
+        rm -rf "$reports"
+        if [ "$SCAN_WORKTREE_INPUT" = "true" ]; then export SCAN_WORKTREE=1; fi
+        status=0
+        bash "$KIT/scripts/run-scan.sh" "$SCAN_PATH" "$reports" || status=$?
+        echo "reports=$reports" >> "$GITHUB_OUTPUT"
+        echo "status=$status" >> "$GITHUB_OUTPUT"
+        if [ -f "$reports/summary.txt" ]; then
+          { echo '### security-audit-kit'; echo; echo '```'; cat "$reports/summary.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+    - name: Upload reports
+      if: ${{ always() && steps.scan.outputs.reports != '' && (inputs.upload-reports == 'always' || (inputs.upload-reports == 'private' && github.event.repository.private == true)) }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.scan.outputs.reports }}
+        retention-days: 7
+
+    - name: Check the result
+      shell: bash
+      env:
+        REPORTS: ${{ steps.scan.outputs.reports }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        summary="$REPORTS/summary.json"
+        if [ ! -s "$summary" ]; then
+          echo "::error::security-audit-kit: no summary.json was written; the scan did not run"
+          exit 1
+        fi
+        if jq -e 'any(.[]; .status == "error")' "$summary" >/dev/null; then
+          echo "::error::security-audit-kit: a scanner could not run (see the job summary)"
+          exit 1
+        fi
+        case "$FAIL_ON" in
+          error) ;;
+          findings)
+            if jq -e 'any(.[]; (.count // 0) > 0)' "$summary" >/dev/null; then
+              echo "::error::security-audit-kit: findings reported (see the job summary). Triage them; suppress a false positive in the scanned repository (nosemgrep, .gitleaksignore, osv-scanner.toml) with a reason"
+              exit 1
+            fi ;;
+          *) echo "::error::security-audit-kit: fail-on must be findings or error, not '$FAIL_ON'"; exit 1 ;;
+        esac
+        echo "security-audit-kit: every scanner ran; fail-on=$FAIL_ON passed"
