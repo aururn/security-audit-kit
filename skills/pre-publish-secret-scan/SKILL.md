@@ -67,7 +67,7 @@ Never print secret values in the report, chat, issues or logs. Summarise rule, f
 | Minified vendor bundles (`public/vs/**`, `*.min.js`) | false positive (identifier looks random) | read the matched token context |
 | Build output (`.next/`, `dist/`, caches) | local random keys, never committed | `git check-ignore -v <path>`, and `git log --all --oneline -- <dir>` prints nothing |
 | Test fixtures (`ci-test-key`, `example`) | fake | the value is used only by tests and fixtures |
-| `generic-api-key` on an empty `NAME=` line (often `.env.example`) whose `StartLine` and `EndLine` differ | false positive only if line `EndLine` is a separate setting (`OTHER_NAME=...`) whose value is not a credential; the rule read that line as the value | nothing follows `=` on `StartLine`, and `sed -n '<EndLine>p' <file> \| cut -d= -f1` prints another setting's name (only the name, never the value). If line `EndLine` is a bare or indented value (an INI or YAML continuation), it is the value of `NAME`: treat the hit as real |
+| `generic-api-key` on an empty `NAME=` line (often `.env.example`) whose `StartLine` and `EndLine` differ | false positive only if line `EndLine` is a separate setting (`OTHER_NAME=...`) whose value is not a credential; the rule read that line as the value | nothing follows `=` on `StartLine`, and `sed -n '<EndLine>p' <file> \| grep -oE '^[A-Za-z_][A-Za-z0-9_.-]*='` prints another setting's `NAME=` (it prints nothing for a line without a name, so no value is shown). If line `EndLine` is a bare or indented value (an INI or YAML continuation), it is the value of `NAME`: treat the hit as real |
 | `.env*` other than `.env.example` | real | `git ls-files` filtered for `.env` |
 
 Also check what gitleaks does not know about:
