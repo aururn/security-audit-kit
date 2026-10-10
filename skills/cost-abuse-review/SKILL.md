@@ -8,6 +8,10 @@ description: Check a deployed web app for ways traffic can run up a bill - unaut
 Bill = cost per request x number of requests. Crawlers and scripts supply the second factor for
 free; the review is about the first factor and about caps.
 
+Measurements in production are read-only `GET` requests. Before sending any, list the production
+URLs you will measure in `references/templates/scope.md` (read-only section) and get the user's
+approval. Never trigger paid upstream calls to measure them.
+
 ## 1. Cost per request
 
 - Does the landing page render dynamically on every request? (`Cache-Control: no-store`,
