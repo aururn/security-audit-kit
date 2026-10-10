@@ -22,6 +22,10 @@ AI（コーディングエージェント、Lovable・Bolt・v0 などのアプ�
   - 確認: マイグレーションに `enable row level security` がテーブルごとにあるか。DB に接続できれば `select tablename, rowsecurity from pg_tables where schemaname = 'public';`
   - 確認（利用者の承認を取ってから。行の中身は取らない）: `curl -s -I "$SUPABASE_URL/rest/v1/<table>?select=*" -H "apikey: <anon key>" -H "Prefer: count=exact"`。HEAD なので本文は返らない。`Content-Range` の `/` の後の件数が 0 でなければ、ログインなしで読める
 - [ ] Supabase：ポリシーが `using (true)` や `with check (true)` で、全員に読み書きを許していない。所有者を `auth.uid()` で絞っている
+- [ ] ★ Supabase：公開されるスキーマの関数を、ブラウザの鍵で `rpc` から呼べない。呼べるなら、関数の中で `auth.uid()` と権限を確かめている
+  - Postgres の関数は、既定で誰でも実行できる（`PUBLIC`）。公開されるスキーマの関数は `POST /rest/v1/rpc/<関数名>` で呼べる。`security definer` の関数は所有者の権限で動く。所有者が `BYPASSRLS` を持つか、`FORCE ROW LEVEL SECURITY` のないテーブルの所有者なら、RLS は効かない（マイグレーションで作った関数の所有者は、多くの場合 `postgres` で、`BYPASSRLS` を持つ）。引数で渡した利用者 ID や組織 ID をそのまま信じる関数は、他人として操作できる
+  - 確認: サーバーだけが呼ぶ関数は、マイグレーションで実行権を取り消しているか。関数ごとの `revoke all on function ... from public, anon, authenticated;` でも、スキーマ全体の `revoke ... on all functions in schema` と `alter default privileges` でもよい
+  - 確認（ブラウザから呼べる関数。承認したローカルの範囲だけで）: ログインなしで呼んだときと、利用者 A のセッションで利用者 B の ID を渡したときに、`rpc` を実際に呼び、B のデータが返らず、変わらないことを確かめる（拒否でも空の結果でもよい。誰に返してもよい公開の関数は除く）。コードを読むだけでは足りない。`auth.uid() is not null` は、ログインしているかしか確かめておらず、渡した ID がその人のものかは確かめていない
 - [ ] ★ Supabase：`service_role` キー（新しい形式では `sb_secret_`）がクライアントのコードや公開される環境変数にない
   - 確認: `grep -rnoE "service_role|sb_secret_|SERVICE_ROLE" --include=*.{js,jsx,ts,tsx,vue,svelte} .`（`-o` なので接頭辞だけが出る）で、サーバー専用のファイル以外に出てこないか
 - [ ] Supabase：Storage のバケットが意図せず public になっていない
