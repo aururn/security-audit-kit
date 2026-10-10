@@ -133,6 +133,38 @@ if ! skipped secret; then
   fi
 fi
 
+# The lockfile has vulnerable packages of five kinds:
+#   lodash       runtime dependency
+#   y18n         devDependency                                            dev-only
+#   glob-parent  optional dependency used only by dev tools ("dev", "optional")  dev-only
+#   ansi-regex   devDependency and optional runtime dependency ("devOptional"), can ship
+#   minimist     devDependency, and also a runtime dependency under an alias
+#                (node_modules/minimist-runtime, "name": "minimist"), so it ships
+# osv-scanner reports glob-parent and ansi-regex alike, as ["dev", "optional"]. The note must count
+# exactly the dev-only entries: y18n's and glob-parent's.
+if ! skipped package-lock; then
+  osv_note=$(json '.["osv-scanner"].note // ""' 'd["osv-scanner"]?.note??""' < "$SUMMARY")
+  # vulns_of <package> : number of OSV entries for that package in osv.json.
+  vulns_of() {
+    json "[.results[]?.packages[]? | select(.package.name == \"$1\") | .vulnerabilities[]?] | length" \
+      "(d.results||[]).flatMap(r=>(r.packages||[]).filter(p=>p.package.name===\"$1\").flatMap(p=>p.vulnerabilities||[])).length" \
+      < "$REPORTS/osv.json"
+  }
+  dev_direct=$(vulns_of y18n)
+  dev_opt_only=$(vulns_of glob-parent)
+  dev_optional=$(vulns_of ansi-regex)
+  aliased=$(vulns_of minimist)
+  dev_expected=$((dev_direct + dev_opt_only))
+  dev_re='\(([0-9]+) in dev-only dependencies\)'
+  if [ "$dev_direct" -ge 1 ] && [ "$dev_opt_only" -ge 1 ] && [ "$dev_optional" -ge 1 ] && [ "$aliased" -ge 1 ] \
+    && [[ $osv_note =~ $dev_re ]] && [ "${BASH_REMATCH[1]}" -eq "$dev_expected" ]; then
+    echo "osv-scanner note counts only dev-only entries ($dev_expected; devOptional and aliased runtime not counted): PASS"
+  else
+    echo "osv-scanner dev-only count is wrong (expected $dev_direct + $dev_opt_only; devOptional $dev_optional, aliased $aliased; note: $osv_note): FAIL"
+    failed=1
+  fi
+fi
+
 # semgrep also flags the workflow and the token file; require a hit in the JavaScript fixture so
 # that the JavaScript rulesets are proven to be loaded as well.
 if ! skipped server; then

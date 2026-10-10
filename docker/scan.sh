@@ -85,7 +85,51 @@ if find "$SRC" -name osv-scanner.toml -not -path '*/node_modules/*' -print -quit
   osv_note="$osv_note (osv-scanner.toml present: some vulns may be ignored)"
 fi
 osv-scanner scan source -r "$SRC" --format json --output "$OUT/osv.json" >"$OUT/osv.log" 2>&1
-case $? in
+osv_rc=$?
+if [ "$osv_rc" -le 1 ]; then
+  # Triage starts from what ships, so say how many entries are in dev-only dependencies. The count
+  # itself stays the total: a dev tool can still run on a developer's machine or in CI.
+  # - package-lock.json and npm-shrinkwrap.json: npm's own flags decide, not osv-scanner's groups
+  #   (those merge a dev-only optional package with a devOptional one, which can ship, and can lose
+  #   an alias that ships). A name@version is dev-only when every lockfile entry for it has
+  #   "dev": true. Names follow osv-scanner: an alias's real name, and the last path part (two for a
+  #   scope) outside node_modules. A package installed from git is not counted (osv-scanner names
+  #   it by its URL).
+  # - other lockfiles: osv-scanner's groups, exactly ["dev"]. pnpm-lock.yaml has none (see below).
+  npm_lock='endswith("package-lock.json") or endswith("npm-shrinkwrap.json")'
+  osv_dev=$(jq "[.results[]? | select((.source.path // \"\") | ($npm_lock) | not)
+    | .packages[]? | select((.dependency_groups // []) == [\"dev\"]) | .vulnerabilities[]?] | length" "$OUT/osv.json" 2>/dev/null)
+  case "$osv_dev" in ''|*[!0-9]*) osv_dev=0 ;; esac
+  # One jq run per lockfile: the lockfile is the input and osv.json is read from its file
+  # (--slurpfile), so a large lockfile never has to fit in a command-line argument.
+  while IFS= read -r lock; do
+    [ -f "$lock" ] || continue
+    n=$(jq --arg lock "$lock" --slurpfile osv "$OUT/osv.json" '
+      def pkgname: if test("node_modules/") then sub("^.*node_modules/"; "")
+        else split("/") | if length > 1 and (.[-2] | startswith("@")) then .[-2:] | join("/") else .[-1] end end;
+      def entry($name): select(.value | type == "object")
+        | {k: ($name + "@" + (.value.version // "" | tostring)), dev: (.value.dev == true)};
+      def v2: .packages | objects | to_entries[] | select(.key != "") | entry(.value.name // (.key | pkgname));
+      # v1: follow the "dependencies" of each record, never a name that happens to be "dependencies".
+      def v1records: (.dependencies // {}) | objects | to_entries[] | select(.value | type == "object")
+        | (., (.value | v1records));
+      def v1: v1records
+        | if (.value.version // "" | tostring | startswith("npm:"))
+          then {k: (.value.version | ltrimstr("npm:")), dev: (.value.dev == true)}
+          else entry(.key) end;
+      ([if has("packages") then v2 else v1 end] | group_by(.k)
+        | map(select(all(.dev)) | {key: .[0].k, value: true}) | from_entries) as $dev
+      | [$osv[0].results[]? | select(.source.path == $lock) | .packages[]?
+         | select($dev[.package.name + "@" + .package.version] == true) | .vulnerabilities[]?] | length' "$lock" 2>/dev/null)
+    case "$n" in ''|*[!0-9]*) n=0 ;; esac
+    osv_dev=$((osv_dev + n))
+  done < <(jq -r "[.results[]?.source.path // empty | select($npm_lock)] | unique | .[]" "$OUT/osv.json" 2>/dev/null)
+  [ "$osv_dev" -gt 0 ] && osv_note="$osv_note ($osv_dev in dev-only dependencies)"
+  if jq -e '[.results[]? | select((.source.path // "") | endswith("pnpm-lock.yaml")) | .packages[]?.vulnerabilities[]?] | length > 0' "$OUT/osv.json" >/dev/null 2>&1; then
+    osv_note="$osv_note (pnpm-lock.yaml: dev and runtime dependencies not told apart)"
+  fi
+fi
+case $osv_rc in
   0|1) record osv-scanner ok "$(count_json "$OUT/osv.json" '[.results[]?.packages[]?.vulnerabilities[]?] | length')" osv.json "$osv_note" ;;
   128) record osv-scanner skipped null "" "no lockfiles found" ;;
   *) record osv-scanner error null osv.log "see osv.log" ;;
