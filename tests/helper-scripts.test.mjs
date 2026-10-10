@@ -4,6 +4,7 @@
 // They run the scripts as child processes, as the skill does. No browser and no network beyond
 // loopback. Run: node --test tests/
 import { spawn } from 'node:child_process'
+import { connect } from 'node:net'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -156,8 +157,22 @@ describe('attacker-page.mjs: pages', () => {
     assert.ok(res.body.includes('\\u003c/script>'))
   })
 
-  test('keeps serving after a malformed request', async () => {
-    await get('/frame?path=%E0%A4%A')
+  test('answers a request it cannot parse with 400 and keeps serving', async () => {
+    await ready
+    // "//[" passes Node's HTTP parser but makes `new URL()` in the handler throw, so only the
+    // handler's own error path answers with the body "bad request" (Node's parser answers
+    // without a body). Without that path the exception would stop the helper.
+    const raw = await new Promise((resolve, reject) => {
+      const s = connect(port, '127.0.0.1', () => {
+        s.write('GET //[ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n')
+      })
+      let data = ''
+      s.on('data', (c) => { data += c })
+      s.on('end', () => resolve(data))
+      s.on('error', reject)
+    })
+    assert.match(raw, /^HTTP\/1\.1 400/)
+    assert.match(raw, /bad request/)
     const { status } = await get('/frame?path=/')
     assert.equal(status, 200)
   })
