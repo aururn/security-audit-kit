@@ -159,7 +159,11 @@ or a browser-automation tool you have, against the local app only.
     the frame; a protected one (`frame-ancestors` or `X-Frame-Options`) shows the browser's
     refused-frame page. The page cannot tell the two apart itself, because the frame is cross-site
   - `/form?path=/api/x&body={"message":"hi"}`: a cross-site `text/plain` POST whose body parses
-    as JSON. Read the app's log or `upstream.log`: was it processed with the user's cookies?
+    as JSON (the form's `=` goes at the end of the last string field, so no field is added).
+    Read the app's log or `upstream.log`: was it processed with the user's cookies? If the session
+    cookie has no SameSite attribute, run it again with `&top=1` (a top-level navigation): some
+    browser versions send such cookies on a top-level cross-site POST for two minutes after they
+    are set (Lax+POST), never on one into an iframe. Report which browser and version you used
   - `/fetch?path=/api/x&method=POST&body=...`: a credentialed cross-site fetch
 
   Log in to the app first in the same browser profile, so its cookies are sent as they would be

