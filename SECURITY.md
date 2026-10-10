@@ -15,6 +15,7 @@
 ## 対象
 
 - `docker/`（スキャナのイメージ、`scan.sh`）
+- `action.yml`（GitHub Actions で使う composite action）
 - `scripts/`
 - `skills/` と `AGENTS.md` の手順のうち、それに従うと利用者に不利益が出るもの
   （秘密情報を外部に送る、本番に攻撃的なリクエストを送る、など）

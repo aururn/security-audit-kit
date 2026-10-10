@@ -34,6 +34,8 @@ scripts/install-skills.sh                        # skills を Claude Code と Co
 scripts/run-scan.sh /path/to/your-app ./reports  # 対象をスキャンする
 ```
 
+GitHub Actions で PR ごとにスキャンする方法は、[スキャナ](docs/scanner.md)の「GitHub Actions で PR ごとに回す」にあります。
+
 入れた後は、エージェントに頼むだけです。
 
 ```text
