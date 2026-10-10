@@ -86,11 +86,16 @@ even if they are dev tools (e.g. `eslint-config-next`); report them as such, not
 
 ## 3. Manual review by category
 
-Apply the checklists that match the stack:
+Always apply `web-api.md` and `ai-generated-code.md`: they do not depend on the language or
+framework. Add the others that match the stack. For a stack with no checklist of its own
+(Python, Ruby, Go, PHP, mobile backends), apply those two plus the stack-independent ones
+(supply chain, CI, secrets, cost), and say in the report that no stack-specific checklist was
+applied.
 
 | Area | Checklist |
 | --- | --- |
 | API routes, auth, CSRF, input, errors, cookies, headers, iframe | `references/checklists/web-api.md` |
+| Mistakes typical of AI-written code: UI-only authorization, Supabase/Firebase rules, keys in the client, hallucinated packages, leftover stubs | `references/checklists/ai-generated-code.md` |
 | Next.js / React specifics | `references/checklists/nextjs-react.md` |
 | LLM / chatbot apps | `references/checklists/llm-app.md` |
 | Billing and abuse | `references/checklists/cost-and-abuse.md` |
