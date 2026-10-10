@@ -4,6 +4,7 @@
 // report reach a shell. They run the scripts as child processes, as the skills do. No browser and
 // no network beyond loopback. Run: node --test tests/
 import { execFileSync, spawn } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { connect } from 'node:net'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -187,7 +188,8 @@ describe('check-empty-value-hit.mjs', () => {
   const hostile = 'a;touch pwned1;b$(touch pwned2)`touch pwned3`.env'
   writeFileSync(join(dir, '.env.example'), 'API_KEY=\nDATABASE_URL=postgres://localhost/app\n')
   writeFileSync(join(dir, hostile), 'API_KEY=\r\nSESSION_SECRET=placeholder\r\n')
-  writeFileSync(join(dir, '.env.real'), 'API_KEY=a1b2c3d4e5f6a1b2c3d4\nDATABASE_URL=postgres://localhost/app\n')
+  // Generated now, so that no key-shaped string is committed to the kit.
+  writeFileSync(join(dir, '.env.real'), `API_KEY=${randomBytes(10).toString('hex')}\nDATABASE_URL=postgres://localhost/app\n`)
   git('init', '-q')
   git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', 'add', '-A')
   git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'fixtures')
