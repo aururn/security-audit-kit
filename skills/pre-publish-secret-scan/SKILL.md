@@ -67,8 +67,12 @@ Never print secret values in the report, chat, issues or logs. Summarise rule, f
 | Minified vendor bundles (`public/vs/**`, `*.min.js`) | false positive (identifier looks random) | read the matched token context |
 | Build output (`.next/`, `dist/`, caches) | local random keys, never committed | `git check-ignore -v <path>`, and `git log --all --oneline -- <dir>` prints nothing |
 | Test fixtures (`ci-test-key`, `example`) | fake | the value is used only by tests and fixtures |
-| `generic-api-key` on an empty `NAME=` line (often `.env.example`) whose `StartLine` and `EndLine` differ | false positive only if line `EndLine` is a separate setting (`OTHER_NAME=...`) whose value is not a credential; the rule read that line as the value | nothing follows `=` on `StartLine`, and `sed -n '<EndLine>p' <file> \| grep -oE '^[A-Za-z_][A-Za-z0-9_.-]*='` prints another setting's `NAME=` (it prints nothing for a line without a name, so no value is shown). If line `EndLine` is a bare or indented value (an INI or YAML continuation), it is the value of `NAME`: treat the hit as real |
 | `.env*` other than `.env.example` | real | `git ls-files` filtered for `.env` |
+| `generic-api-key` whose `StartLine` and `EndLine` differ, in a dotenv file (`.env`, `.env.*`, often `.env.example`) | false positive only when `StartLine` is `NAME=` with nothing after it and the next line is another setting (`OTHER_NAME=...`): the rule read that setting as the value. A credential in that setting shows up as a hit of its own | run the check below on the version the hit came from (for `gitleaks-worktree`, on the file on disk instead of `git show`). It prints only one of two fixed phrases, never the lines. On `check by hand` (a bare or indented token, or any other format such as INI or YAML), treat the hit as real |
+
+```sh
+git show <Commit>:<File> | awk -v s=<StartLine> 'NR==s {a = ($0 ~ /^[A-Za-z_][A-Za-z0-9_]*=[[:space:]]*$/)} NR==s+1 {b = ($0 ~ /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+=/)} END {print (a && b) ? "empty, then another setting" : "check by hand"}'
+```
 
 Also check what gitleaks does not know about:
 

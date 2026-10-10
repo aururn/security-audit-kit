@@ -97,12 +97,18 @@ scanners downloaded on the spot: they are not pinned or verified.
 
 Triage every hit. Typical false positives: minified vendor code, build output (`.next/`,
 `dist/`), test fixtures with fake keys, and gitleaks' `generic-api-key` on an empty `NAME=` line
-(often in `.env.example`) that read the next line as the value. Dismiss that one only when its
-`StartLine` and `EndLine` differ, nothing follows `=` on `StartLine`, and line `EndLine` is another
-setting (`OTHER_NAME=...`; `grep -oE '^[A-Za-z_][A-Za-z0-9_.-]*='` on that line prints only the
-name, or nothing) whose value is not a credential; a bare or indented next line is the real value. Confirm build output is gitignored and
-never committed before dismissing it. `pnpm audit --prod` counts dependencies declared in `dependencies`
-even if they are dev tools (e.g. `eslint-config-next`); report them as such, not as runtime risk.
+in a dotenv file (often `.env.example`) that read the next setting as the value. Dismiss that one
+only when `StartLine` and `EndLine` differ and this check, run on the version the hit came from
+(the file on disk for `gitleaks-worktree`), prints `empty, then another setting`. It prints one of
+two fixed phrases, never the lines; on `check by hand`, treat the hit as real.
+
+```sh
+git show <Commit>:<File> | awk -v s=<StartLine> 'NR==s {a = ($0 ~ /^[A-Za-z_][A-Za-z0-9_]*=[[:space:]]*$/)} NR==s+1 {b = ($0 ~ /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+=/)} END {print (a && b) ? "empty, then another setting" : "check by hand"}'
+```
+
+Confirm build output is gitignored and never committed before dismissing it. `pnpm audit --prod`
+counts dependencies declared in `dependencies` even if they are dev tools (e.g.
+`eslint-config-next`); report them as such, not as runtime risk.
 
 ## 3. Manual review by category
 
