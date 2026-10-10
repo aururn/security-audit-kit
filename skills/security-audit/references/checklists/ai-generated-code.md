@@ -25,9 +25,11 @@ AI（コーディングエージェント、Lovable・Bolt・v0 などのアプ�
 - [ ] ★ Supabase：`service_role` キー（新しい形式では `sb_secret_`）がクライアントのコードや公開される環境変数にない
   - 確認: `grep -rnoE "service_role|sb_secret_|SERVICE_ROLE" --include=*.{js,jsx,ts,tsx,vue,svelte} .`（`-o` なので接頭辞だけが出る）で、サーバー専用のファイル以外に出てこないか
 - [ ] Supabase：Storage のバケットが意図せず public になっていない
-- [ ] ★ Firebase：`firestore.rules`・`storage.rules`・`database.rules.json` に `allow read, write: if true` や、テストモードの `request.time < timestamp.date(...)` が残っていない
+- [ ] ★ Firebase（Firestore・Storage）：`firestore.rules`・`storage.rules` に `allow read, write: if true` や、テストモードの `request.time < timestamp.date(...)` が残っていない
   - テストモードの規則は、期限まで誰でも読み書きできる
-- [ ] Firebase：利用者ごとのデータを `request.auth != null` だけで許していない（ログインした全員が全員分を読める）。`request.auth.uid` と所有者の項目を比べている
+- [ ] Firebase（Firestore・Storage）：利用者ごとのデータを `request.auth != null` だけで許していない（ログインした全員が全員分を読める）。`request.auth.uid` と所有者の項目を比べている
+- [ ] ★ Firebase（Realtime Database）：`database.rules.json` に `".read": true`・`".write": true` や、テストモードの `"now < <期限の時刻>"` が残っていない。利用者ごとのデータは `auth != null` だけでなく、`auth.uid === $uid` のように所有者と比べている
+  - Realtime Database の規則は JSON で、`.read`・`.write` と `auth`・`now` を使う。Firestore の `allow` や `request.auth` の書き方を探しても見つからない
 - [ ] リポジトリの規則と、実際にデプロイされている規則が同じか（ダッシュボード。未確認として利用者に確認を依頼する）
 
 ## クライアントに入った鍵
