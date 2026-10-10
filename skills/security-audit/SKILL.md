@@ -99,13 +99,15 @@ Triage every hit. Typical false positives: minified vendor code, build output (`
 `dist/`), test fixtures with fake keys, and gitleaks' `generic-api-key` on an empty `NAME=` line
 in a dotenv file (often `.env.example`) that read the next setting as the value. That hit also
 covers the next setting, and gitleaks does not report it separately, so never dismiss it on your
-own. When `StartLine` and `EndLine` differ, run this check on the version the hit came from (the
-file on disk for `gitleaks-worktree`); it prints one of two fixed phrases, never the lines. On
-`real`, treat the hit as real. On `ask the user`, give them the file, `EndLine` and commit, and
-dismiss it only after they confirm that setting holds no credential.
+own. When `StartLine` and `EndLine` differ, run this check with the report and the hit's position
+in it. It reads the commit and the file from the report (never type them into a command: a file
+name in the target can contain shell syntax) and prints one of two fixed phrases, never the lines.
+Without Node.js, treat the result as `ask the user`. On `real`, treat the hit as real. On
+`ask the user`, give them the file, `EndLine` and commit, and dismiss it only after they confirm
+that setting holds no credential.
 
 ```sh
-git show <Commit>:<File> | awk -v s=<StartLine> 'NR==s {a = ($0 ~ /^[A-Za-z_][A-Za-z0-9_]*=[[:space:]]*$/)} NR==s+1 {b = ($0 ~ /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+=/)} END {print (a && b) ? "ask the user" : "real"}'
+node "$KIT/scripts/check-empty-value-hit.mjs" <report.json> <index of the hit, from 0> <scanned dir>
 ```
 
 Confirm build output is gitignored and never committed before dismissing it. `pnpm audit --prod`

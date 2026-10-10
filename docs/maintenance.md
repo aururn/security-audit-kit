@@ -45,7 +45,7 @@ CI（amd64・arm64）は、これに加えて次を確かめます。
 - キット自身をスキャンして、全ツールが0件
 - shellcheck
 - `tests/test-dast-guard.sh`：`dast-baseline.sh` がローカル以外（`http://localhost:1@evil.example` のように、ローカルに見えるだけのものを含む）を拒否すること、WARN のある結果を「問題なし」と表示しないこと。docker を偽物に差し替えて動かすので、ZAP は要りません
-- `tests/helper-scripts.test.mjs`：再現に使う `fake-upstream.mjs` が Authorization の値を記録しないこと、`attacker-page.mjs` がローカル以外の target と、target のオリジンの外へ向かう path を拒否すること。`node --test tests/helper-scripts.test.mjs` で動き、ブラウザは要りません
+- `tests/helper-scripts.test.mjs`：再現に使う `fake-upstream.mjs` が Authorization の値を記録しないこと、`attacker-page.mjs` がローカル以外の target と、target のオリジンの外へ向かう path を拒否すること。`scripts/check-empty-value-hit.mjs` が、レポートにあるファイル名をシェルに渡さず、決まった 2 つの文言しか表示しないこと。`node --test tests/helper-scripts.test.mjs` で動き、ブラウザは要りません
 
 ## skill の選ばれ方を確かめる（手動）
 
