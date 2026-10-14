@@ -5,7 +5,7 @@
 # tags were tampered with in March 2026). Update pins with scripts/update-tools.sh.
 # The base image comes from Google's Docker Hub mirror: the same image (same digest), without
 # Docker Hub's unauthenticated pull limit, which shared CI runners hit (docs/decisions/0006).
-FROM mirror.gcr.io/library/python:3.13-slim@sha256:7c61056e61ac89e852de05f3dc6fa51a6dd2181797bceed46aa725dd7cb2cd3b
+FROM mirror.gcr.io/library/python:3.13-slim@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f
 
 ARG TARGETARCH
 ARG GITLEAKS_VERSION=8.30.1
